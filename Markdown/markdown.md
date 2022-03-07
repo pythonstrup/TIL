@@ -345,8 +345,8 @@ URL 주소를 그대로 가져와 링크를 만든다. (<> 생략가능)
 ### 2-9. 이모지
 
 <hr/>
-이모지 링크 : https://kr.piliapp.com/twitter-symbols/
-위의 이모지를 복사 붙여넣기 하면 마크다운에서도 이모지를 사용할 수 있다.
+이모지 링크 : https://kr.piliapp.com/twitter-symbols/ <br/>
+위의 이모지를 복사 붙여넣기 하면 마크다운에서도 이모지를 사용할 수 있다. <br/>
 
 😀😃🧐👄
 
@@ -358,8 +358,10 @@ URL 주소를 그대로 가져와 링크를 만든다. (<> 생략가능)
 
 참고 자료:
 https://inasie.github.io/it%EC%9D%BC%EB%B0%98/%EB%A7%88%ED%81%AC%EB%8B%A4%EC%9A%B4-%ED%91%9C-%EB%A7%8C%EB%93%A4%EA%B8%B0/
+<br/>
 
 | 으로 열을 구분하며, 폰트스타일이 적용 가능하다.
+하이픈(-)과 콜론(:)을 이용하면 정렬도 가능하다. 콜론이 왼쪽에만 있으면 왼쪽 정렬, 양쪽에 있으면 가운데 정렬, 오른쪽에만 있으면 오른쪽 정렬이다.
 
 ```
 | 제목 | 작가 | 출판일 |
@@ -367,6 +369,8 @@ https://inasie.github.io/it%EC%9D%BC%EB%B0%98/%EB%A7%88%ED%81%AC%EB%8B%A4%EC%9A%
 | 제목1 | 작가1 | 출판일1 |
 | 제목2 | 작가2 | 출판일2 |
 ```
+
+<br/>
 
 | 제목  | 작가  |  출판일 |
 | :---- | :---: | ------: |
@@ -377,7 +381,11 @@ https://inasie.github.io/it%EC%9D%BC%EB%B0%98/%EB%A7%88%ED%81%AC%EB%8B%A4%EC%9A%
 
 # 마무리
 
-10분 마크다운 배우기:
-https://www.markdowntutorial.com/kr/lesson/1/
+vscode에서 마크다운 preview 사용 단축키 : Ctrl + Shift + v
+<br/>
 
-티스토리에서 마크다운 사용하기: https://redthing.tistory.com/entry/%ED%8B%B0%EC%8A%A4%ED%86%A0%EB%A6%AC-%EB%A7%88%ED%81%AC%EB%8B%A4%EC%9A%B4-%EB%AC%B8%EB%B2%95%EC%9C%BC%EB%A1%9C-%ED%8F%AC%EC%8A%A4%ED%8C%85%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%95
+10분 마크다운 배우기: [마크다운 배우기](https://www.markdowntutorial.com/kr/lesson/1/)
+
+<br/>
+
+티스토리에서 마크다운 사용하기: [티스토리 마크다운](https://redthing.tistory.com/entry/%ED%8B%B0%EC%8A%A4%ED%86%A0%EB%A6%AC-%EB%A7%88%ED%81%AC%EB%8B%A4%EC%9A%B4-%EB%AC%B8%EB%B2%95%EC%9C%BC%EB%A1%9C-%ED%8F%AC%EC%8A%A4%ED%8C%85%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%95)
