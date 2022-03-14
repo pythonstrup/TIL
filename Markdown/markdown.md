@@ -295,7 +295,7 @@ blogLink: https://myvelop.tistory.com/ "Go Blog"
 
 - 자동연결
 
-URL 주소를 그대로 가져와 링크를 만든다. (<> 생략가능)
+URL 주소를 그대로 가져와 링크를 만든다.
 
 ```
 블로그링크: <https://myvelop.tistory.com/>
