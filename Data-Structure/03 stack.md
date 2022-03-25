@@ -53,7 +53,7 @@
               else 스택의 맨 위의 원소를 제거하지 않고 반환한다.
 ```
 
-<br/>
+<br/><br/>
 
 ## 2. 스택의 구현
 
@@ -161,11 +161,11 @@ void push(Stack* s, element item) {
 
 [동적 배열 스택 구현코드](stack-code/dynamicStack.c)
 
+<br/><br/>
+
 ## 3. 스택 응용
 
 <hr/>
-
-<br/>
 
 ### 3-1. 괄호검사
 
@@ -208,6 +208,6 @@ void push(Stack* s, element item) {
 
 <hr/>
 
-추후 업데이트
+[간단한 스택계산기](stack-code/stackComputer.c)
 
 <br/>
