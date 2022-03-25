@@ -29,7 +29,7 @@ int is_full(StackType* s) {
 
 void push(StackType* s, element item) {
 	if (is_full(s)) {
-		fprintf(stderr, "½ºÅÃ Æ÷È­ ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ í¬í™” ì—ëŸ¬\n");
 		return;
 	}
 	else s->data[++(s->top)] = item;
@@ -37,7 +37,7 @@ void push(StackType* s, element item) {
 
 element pop(StackType* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[(s->top)--];
@@ -46,7 +46,7 @@ element pop(StackType* s) {
 element peek(StackType* s)
 {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[s->top];
@@ -99,7 +99,7 @@ int main(void) {
 		push_loc(&s, r, c - 1);
 		push_loc(&s, r, c + 1);
 		if (is_empty(&s)) {
-			printf("½ÇÆÐ\n");
+			printf("ì‹¤íŒ¨\n");
 			return;
 		}
 		else {
@@ -107,6 +107,6 @@ int main(void) {
 		}
 	}
 
-	printf("¼º°ø\n");
+	printf("ì„±ê³µ\n");
 	return 0;
 }

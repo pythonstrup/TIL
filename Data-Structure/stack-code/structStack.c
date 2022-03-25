@@ -23,7 +23,7 @@ int is_full(Stack* s) {
 
 void push(Stack* s, element item) {
 	if (is_full(s)) {
-		fprintf(stderr, "½ºÅÃ Æ÷È­ ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ í¬í™” ì—ëŸ¬\n");
 		return;
 	}
 	else s->data[++(s->top)] = item;
@@ -31,7 +31,7 @@ void push(Stack* s, element item) {
 
 element pop(Stack* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[(s->top)--];
@@ -39,7 +39,7 @@ element pop(Stack* s) {
 
 element peek(Stack* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[s->top];

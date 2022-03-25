@@ -191,7 +191,10 @@ void push(Stack* s, element item) {
 
 <hr/>
 
-추후 업데이트
+괄호와 연산자의 우선순위를 고려해 스택에 차곡차곡 쌓으면 후위표기식을 만들 수 있다.
+
+<br/>
+
 [후위 표기식 구현코드](stack-code/postfix.c)
 
 <br/>
@@ -200,6 +203,8 @@ void push(Stack* s, element item) {
 
 <hr/>
 
+현재의 위치에서 가능한 방향을 스택에 저장해 놓았다가 막다른 길을 만나면 스택에서 다음 탐색 위치를 꺼내 그 위치로 이동한다.
+
 [미로탐색 구현코드](stack-code/maze.c)
 
 <br/>
@@ -207,6 +212,7 @@ void push(Stack* s, element item) {
 ### 3-4. 스택계산기
 
 <hr/>
+괄호검사와 후위표기식 변환 및 계산 등의 논리가 필요한 스택계산기이다.
 
 [간단한 스택계산기](stack-code/stackComputer.c)
 

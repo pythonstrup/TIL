@@ -5,7 +5,7 @@ typedef int element;
 
 typedef struct {
 	element *data;
-	int capacity;  // ÇöÀç ½ºÅÃ Å©±â
+	int capacity;  // í˜„ìž¬ ìŠ¤íƒ í¬ê¸°
 	int top;
 } Stack;
 
@@ -33,7 +33,7 @@ void push(Stack* s, element item) {
 
 element pop(Stack* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[(s->top)--];
@@ -41,7 +41,7 @@ element pop(Stack* s) {
 
 element peek(Stack* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[s->top];

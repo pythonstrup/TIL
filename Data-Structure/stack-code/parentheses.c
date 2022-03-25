@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS // scanf ì˜¤ë¥˜ ë°©ì§€
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,37 +12,43 @@ typedef struct {
 	int top;
 } StackType;
 
+// ìŠ¤íƒ ì´ˆê¸°í™” í•¨ìˆ˜
 void init_stack(StackType* s) {
 	s->top = -1;
 }
 
+// ê³µë°± ìƒíƒœ ê²€ì¶œ í•¨ìˆ˜
 int is_empty(StackType* s) {
 	return (s->top == -1);
 }
 
+// í¬í™” ìƒíƒœ ê²€ì¶œ í•¨ìˆ˜
 int is_full(StackType* s) {
 	return (s->top == (MAX_STACK_SIZE - 1));
 }
 
+// ì‚½ì… í•¨ìˆ˜
 void push(StackType* s, element item) {
 	if (is_full(s)) {
-		fprintf(stderr, "½ºÅÃ Æ÷È­ ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ í¬í™” ì—ëŸ¬\n");
 		return;
 	}
 	else s->data[++(s->top)] = item;
 }
 
+// ì‚­ì œ í•¨ìˆ˜
 element pop(StackType* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[(s->top)--];
 }
 
+// í”¼í¬ í•¨ìˆ˜
 element peek(StackType* s) {
 	if (is_empty(s)) {
-		fprintf(stderr, "½ºÅÃ °ø¹é ¿¡·¯\n");
+		fprintf(stderr, "ìŠ¤íƒ ê³µë°± ì—ëŸ¬\n");
 		exit(1);
 	}
 	else return s->data[s->top];
@@ -72,7 +79,7 @@ int check_matching(const char* in) {
 			}
 		}
 	}
-	if (!is_empty(&s)) return 0; // ½ºÅÃ¿¡ ³²¾ÆÀÖÀ¸¸é ¿À·ù
+	if (!is_empty(&s)) return 0; // ìŠ¤íƒì— ë‚¨ì•„ìˆìœ¼ë©´ ì˜¤ë¥˜
 	return 1;
 }
 
@@ -80,14 +87,14 @@ int main(void)
 {
 	char* p = "{ A[(i+1)]=0; }";
 	if (check_matching(p) == 1)
-		printf("%s °ıÈ£°Ë»ç¼º°ø\n", p);
+		printf("%s ê´„í˜¸ê²€ì‚¬ì„±ê³µ\n", p);
 	else
-		printf("%s °ıÈ£°Ë»ç½ÇÆĞ\n", p);
+		printf("%s ê´„í˜¸ê²€ì‚¬ì‹¤íŒ¨\n", p);
 
 	char* p2 = "A[(i+1]=0; }";
 	if (check_matching(p2) == 1)
-		printf("%s °ıÈ£°Ë»ç¼º°ø\n", p2);
+		printf("%s ê´„í˜¸ê²€ì‚¬ì„±ê³µ\n", p2);
 	else
-		printf("%s °ıÈ£°Ë»ç½ÇÆĞ\n", p2);
+		printf("%s ê´„í˜¸ê²€ì‚¬ì‹¤íŒ¨\n", p2);
 	return 0;
 }
