@@ -1497,9 +1497,208 @@ _주의사항: 한글로 되어있는 파일은 깨질 수 있기 때문에 따�
 ```python
 import csv
 reader = csv.reader(f,
-delimiter=',', quotechar='"',
-quoting=csv.QUOTE_ALL)
+        delimiter=',', quotechar='"',
+        quoting=csv.QUOTE_ALL)
+```
+
+<br/>
+
+> 안산시로 들어오는 유동인구 데이터 예제
+
+```python
+import csv
+
+data = []
+header = []
+rownum = 0
+
+with open("csv/korea_traffic_data.csv", "r", encoding="cp949") as file:
+    csv_data = csv.reader(file)
+    for row in csv_data:
+        if rownum == 0:
+            header = row
+
+        try:
+            location = row[4]
+        except IndexError:
+            continue
+
+        if location.find(u"안산시") != -1:  # u -> 유니코드
+            data.append(row)
+        rownum += 1
+
+with open("csv/Ansan_traffic_data.csv", "w", encoding="utf-8") as a_file:
+    writer = csv.writer(a_file, delimiter="\t",
+             quotechar="'", quoting=csv.QUOTE_ALL)
+    writer.writerow(header)
+    for row in data:
+        writer.writerow(row)
 ```
 
 <br/>
 <br/>
+
+### 30. Python Web Data Handling
+
+<hr/>
+
+웹 상의 HTML 데이터를 파이썬으로 해석하여 데이터를 가져올 수 있다. 대체로 3가지 방법을 사용한다. str 형태로 분석하기, regex(정규식) 이용하기, BeautiifulSoup 도구 사용하기이다. 이중에서 regex에 대해 알아보자.
+
+<br/>
+
+#### 정규식 (regular expression)
+
+복잡한 문자열 패턴을 정의하는 문자 표현 공식이다. 특정한 규칙을 가진 문자열의 집합을 추출할 때 사용된다. 주민등록 번호, 전화번호, 도서 ISBN 등의 형식이 있는 문자열을 추출할 때 유용하다. 정규식은 HTML에도 적용할 수 있는데, HTML파일도 tag를 사용해 일정한 형식이 존재하기 때문이다.<br/>
+
+- 관련자료 : [정규표현식을 소개합니다.](https://www.nextree.co.kr/p4327/)
+
+- 정규식 연습장: [정규식 연습장](<(http://www.regexr.com/)>)
+
+<br/>
+
+> 예제1 - 아이디 탐색하기
+
+```python
+import re
+import urllib.request
+
+# url 정보를 통해 html 소스코드를 가져옴
+url = "https://bit.ly/3rxQFS4"
+html = urllib.request.urlopen(url)
+html_contents = str(html.read())
+
+# 정규식을 이용해 html 소스코드의 정보를 탐색
+id_results = re.findall(r"([A-Za-z0-9]+\*\*\*)", html_contents)
+
+for result in id_results:
+    print(result)
+```
+
+> 예제2
+
+```python
+import re
+import urllib.request
+
+url = "https://www.google.com/googlebooks/uspto-patents-grants-text.html"
+html = urllib.request.urlopen(url)
+html_contents = str(html.read().decode("utf8"))
+
+url_list = re.findall(r"(http)(.+)(zip)", html_contents)
+for url in url_list:
+    print("".join(url))
+```
+
+> 예제3 - 삼성전자 주식
+
+```python
+import re
+import urllib.request
+
+url = "https://finance.naver.com/item/main.naver?code=005930"
+html = urllib.request.urlopen(url)
+html_contents = str(html.read().decode("ms949"))
+
+# result = re.findall("(\<dl class=\"blind\"\>)([\s\S]+?)(\<\/dl\>)", html_contents)
+result = re.findall('(<dl class="blind">)([\s\S]+?)(</dl>)', html_contents)
+stock = result[0]
+index = result[1]
+
+stock_list = re.findall("(\<dd\>)([\s\S]+?)(\<\/dd\>)", str(stock))
+for st in stock_list:
+    print(st)
+
+index_list = re.findall("(\<dd\>)([\s\S]+?)(\<\/dd\>)", str(index))
+for idx in index_list:
+    print(idx[1])
+```
+
+<br/>
+
+#### XML(eXtensibel Markup Language)
+
+JSON과 비슷한 역할을 하는 Markup 언어이다. BeautifulSoup을 이용해 파싱해 사용한다. BeautifulSoup를 설치하는 방법은 아래와 같다.
+
+```bash
+activate 가상환경이름  # 가상환경 활성화
+conda install lxml
+conda install -c anaconda beautifulsoup4
+```
+
+> 예제1
+
+```python
+from bs4 import BeautifulSoup
+
+with open("xml/books.xml", "r", encoding="utf8") as books_file:
+    books_xml = books_file.read()
+
+    soup = BeautifulSoup(books_xml, "lxml")
+
+    for book_info in soup.find_all("author"):
+        print(book_info)
+        print(book_info.get_text())
+```
+
+> 예제2
+
+```python
+import urllib.request
+from bs4 import BeautifulSoup
+
+with open("xml/US08621662-20140107.XML", "r", encoding="utf8") as patent_xml:
+    xml = patent_xml.read()
+
+soup = BeautifulSoup(xml, "lxml")  # lxml parser 호출
+
+invention_title_tag = soup.find("invention-title")
+print(invention_title_tag)
+```
+
+<br/>
+
+#### JSON(JavaScript Object Notation)
+
+원래 웹 언어인 Java Script의 데이터 객체 표현 방식이다. 간결하기 때문에 기계/인간이 모두 이해하기 편하다. 또한 데이터 용량이 적고, 코드로의 전환이 쉽기 때문에 XML 대신 많이 활용되고 있다. Python의 Dict타입과 굉장히 비슷한데, 데이터 저장 및 읽기는 dict 타입과 상호 호환이 가능하다.
+
+<br/>
+
+> 예제1 - json 읽기
+
+employees.json 파일
+
+```json
+{
+  "employees": [
+    { "firstName": "John", "lastName": "Doe" },
+    { "firstName": "Anna", "lastName": "Smith" },
+    { "firstName": "Peter", "lastName": "Jones" }
+  ]
+}
+```
+
+파이썬 코드
+
+```python
+import json
+
+with open("json/employees.json", "r", encoding="utf8") as f:
+    contents = f.read()
+    json_data = json.loads(contents)
+    print(json_data["employees"])
+```
+
+<br/>
+
+> 예제2 - json 쓰기
+
+```python
+import json
+
+dict_data = {"Name": "Kaka", "Age": 24, "Class": "First"}
+
+with open("json/data1.json", "w") as f:
+    json.dump(dict_data, f)
+```
+
+<br/><br/>
