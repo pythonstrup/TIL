@@ -31,11 +31,6 @@
 </code>
 </pre>
 
-```math
-\frac{\sigma}{\sqrt{n}}
-```
-
-
 #### 해결방법3: Readme2Tex를 사용한다.
 
 #### 해결방법4: 온라인 에디터를 사용한다.
@@ -349,6 +344,21 @@ $$ \displaystyle\lim_{x\rarr\infin}{x^3} $$
 ```
 
 $$ \displaystyle\lim_{x\rarr\infin}{x^3} $$
+
+<br/>
+
+주피터 노트북에서 \infin과 \rarr, \larr가 적히지 않는 오류가 발생한다.
+- 무한대는 `\infty`로 적어주자.
+- 오른쪽 화살표는 `\rightarrow` 
+- 왼쪽 화살표는 `\leftarrow`
+- 극한의 밑을 `{x \to \infty}` 로 적어도 된다.
+
+```
+$$ \lim_{x \rightarrow \infty}{x+10} $$
+$$ \lim_{x \to \infty}{x^3} $$
+```
+$$ \lim_{x \rightarrow \infty}{x+10} $$
+$$ \lim_{x \to \infty}{x^3} $$
 
 <br/>
 
