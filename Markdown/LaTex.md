@@ -471,9 +471,9 @@ $$
 - `\mu` $\mu$
 - `\pi` $\pi$
 - `\phi` $\phi$
-- `\nabla` $\nabla$
-- `\lceil x \rceil` $\lceil x \rceil$ 천장함수
-- `\lfloor x \rfloo` $\lfloor x \rfloor$ 바닥함수
+- `\nabla` $`\nabla`$
+- `\lceil x \rceil` $`\lceil x \rceil`$ 천장함수
+- `\lfloor x \rfloo` $`\lfloor x \rfloor`$ 바닥함수
 
 <br/>
 
