@@ -14,6 +14,40 @@
 
 <hr/>
 
+## 0. 주의사항
+
+- 깃허브에서 `md` 확장자로 LaTex 문법을 적어 올리면 문법을 인식하지 못한다.
+- 해결방법: [Latex rendering in README.md on Github](https://localcoder.org/latex-rendering-in-readme-md-on-github)
+- 사용하기 편리한 해결 방법을 정리하자면 아래와 같다.
+
+#### 해결방법1: Jupyter Notebook 마크다운에 정리한다.
+
+#### 해결방법2: 인라인 라텍스를 사용한다.
+<pre>
+<code>
+```math
+\frac{\sigma}{\sqrt{n}}
+```
+</code>
+</pre>
+
+```math
+\frac{\sigma}{\sqrt{n}}
+```
+
+
+#### 해결방법3: Readme2Tex를 사용한다.
+
+#### 해결방법4: 온라인 에디터를 사용한다.
+
+<br/>
+
+개인적으로 jupyter notebook에 정리하는 것을 추천한다.
+
+<br/>
+
+<hr/>
+
 ## 1. LaTex
 
 <hr/>
@@ -471,9 +505,9 @@ $$
 - `\mu` $\mu$
 - `\pi` $\pi$
 - `\phi` $\phi$
-- `\nabla` $`\nabla`$
-- `\lceil x \rceil` $`\lceil x \rceil`$ 천장함수
-- `\lfloor x \rfloo` $`\lfloor x \rfloor`$ 바닥함수
+- `\nabla` $\nabla$
+- `\lceil x \rceil` $\lceil x \rceil$ 천장함수
+- `\lfloor x \rfloo` $\lfloor x \rfloor$ 바닥함수
 
 <br/>
 
