@@ -6,10 +6,10 @@
 #define N 600        // 노드의 갯수
 #define M 9999     // 최대 값
 
-FILE* fp;
+FILE* fp; // 파일을 오픈할 때 사용할 전역변수
 int data[N][N];
 
-typedef struct Node {
+typedef struct Node { // 집약적인 정보를 담아둘 구조체
 	char numbername[N][20]; // 역 고유번호
 	char name[N][20]; // 역 이름
 	char nosun[N][20]; // 노선 이름
@@ -89,14 +89,14 @@ void input(Node* Subway) {
 		fgets(line, 1024, fp);
 		sscanf(line, "%[^,], %s", Subway->numbername[count], Subway->name[count]);
 		Subway->number[count] = count;
-		/*printf("Number: %s, ", Subway->numbername[count]); // 테스트
-		printf("Name: %s\n", Subway->name[count]);*/
+		//printf("Number: %s, ", Subway->numbername[count]); // 테스트
+		//printf("Name: %s\n", Subway->name[count]);
 		count++;
 	}
 	fclose(fp);
 
 	// 역이름, 환승정보 외의 모든 파일의 이름을 저장한 배열
-	char* filename_list[18] = { "data/1지선.csv", "data/1호선.csv", "data/2지선.csv", "data/2호선.csv", "data/3호선.csv", "data/4호선.csv", "data/5지선.csv",
+	char* filename_list[18] = { "data/1호선.csv", "data/1호선.csv", "data/2지선.csv", "data/2호선.csv", "data/3호선.csv", "data/4호선.csv", "data/5지선.csv",
 						"data/5호선.csv", "data/6호선.csv", "data/7호선.csv", "data/8호선.csv", "data/9호선.csv", "data/경의선.csv", "data/경춘선.csv",
 						"data/공항철도.csv", "data/분당선.csv", "data/인천1선.csv", "data/중앙선.csv" };
 
@@ -134,12 +134,21 @@ void input(Node* Subway) {
 				p = strtok(NULL, ",");
 				if (p == NULL) break;
 				weight = atoi(p); // 거리정보를 int형으로 변환
-
 				if (weight < M) { // 9999보다 작으면 서로 연결되어 있는 정점이다.
 					end_number = find_index_bynumbername(seq[count], Subway); // 고유번호 행렬을 이용해 정점의 인덱스를 찾아준다.
-					// printf("%s: %d\n", seq[count], end_number); // 정상적으로 인덱스가 찾아지는지 확인
-					data[start_number][end_number] = weight; // 양쪽으로 연결되어 있으므로 반대의 경우도 똑같이 넣어준다.
-					data[end_number][start_number] = weight;
+					if (end_number == -1) { //마지막 seq는  '\n'을 가지고 있다. 그러면 end_number가 -1이 되는데 이를 예외처리해주자.
+						for (int i = 0; seq[count][i] != 0; i++) {
+							if (seq[count][i] == '\n') { // seq에 있는 문자열에 한 부분이 '\n'을 포함하고 있다면
+								seq[count][i] = 0; // 대신 NULL문자를 대입해준다.
+								break;
+							}
+						}
+						end_number = find_index_bynumbername(seq[count], Subway); // 다시 end_number를 찾아준다.
+					}
+					// printf("%s: %d\n", seq[count], find_index_bynumbername(seq[count], Subway)); // 테스트
+					//printf("%s: %d 인덱스 %d\n", seq[count], end_number, count); // 정상적으로 인덱스가 찾아지는지 확인
+					data[start_number-1][end_number-1] = weight; // 양쪽으로 연결되어 있으므로 반대의 경우도 똑같이 넣어준다.
+					data[end_number-1][start_number-1] = weight;
 				}
 				count++;
 			}
@@ -182,9 +191,18 @@ void input(Node* Subway) {
 			if (weight < M) { // 9999보다 작으면 서로 연결되어 있는 정점이다.
 				int random = (rand() % weight) + 1; // 환승정보 랜덤난수 만들기 (1이상으로)
 				end_number = find_index_bynumbername(seq[count], Subway); // 고유번호 행렬을 이용해 정점의 인덱스를 찾아준다.
+				if (end_number == -1) { //마지막 seq는  '\n'을 가지고 있다. 그러면 end_number가 -1이 되는데 이를 예외처리해주자.
+					for (int i = 0; seq[count][i] != 0; i++) {
+						if (seq[count][i] == '\n') { // seq에 있는 문자열에 한 부분이 '\n'을 포함하고 있다면
+							seq[count][i] = 0; // 대신 NULL문자를 대입해준다.
+							break;
+						}
+					}
+					end_number = find_index_bynumbername(seq[count], Subway); // 다시 end_number를 찾아준다.
+				}
 				// printf("%s: %d\n", seq[count], end_number); // 정상적으로 인덱스가 찾아지는지 확인
-				data[start_number][end_number] = random; // 양쪽으로 연결되어 있으므로 반대의 경우도 똑같이 넣어준다.
-				data[end_number][start_number] = random;
+				data[start_number-1][end_number-1] = random; // 양쪽으로 연결되어 있으므로 반대의 경우도 똑같이 넣어준다.
+				data[end_number-1][start_number-1] = random;
 			}
 			count++;
 		}
@@ -214,7 +232,10 @@ void shortfind(Node* Subway, int option) {		//구조체안에 배열값을 변�
 				// 환승장이 있는 역은 호선마다 이름이 같더라도 고유번호가 다르기 때문에 이름으로 비교해준다.
 				if (strcmp(Subway->name[i + 1], Subway->name[j + 1]) == 0) {
 					data[i][j] += 1000;			//환승역일경우 가중치 1000을 더해서 최소환승을 함
+					//printf("%s %d %s %d\n", Subway->name[i + 1], i + 1, Subway->name[j + 1], j + 1);
+					//printf("%d %d\n", data[i][j], data[i+1][j+1]); // 테스트
 				}
+				
 
 				if (i == j) {
 					data[i][j] = 0;
@@ -254,6 +275,7 @@ void shortfind(Node* Subway, int option) {		//구조체안에 배열값을 변�
 			{
 				Subway->distance[j] = Subway->distance[k] + data[k][j];
 				Subway->via[j] = k;
+				// printf("% d ", Subway->distance[j]);
 			}
 		}
 	}
@@ -262,8 +284,9 @@ void shortfind(Node* Subway, int option) {		//구조체안에 배열값을 변�
 // 구한 최단거리를 출력해주는 함수
 void print(Node subway, char start[], char dest[], int option) {
 	int path[N], path_cnt = 0;
-	int i = 0, k, temp = 599;
-	int count = 0; // 
+	int i = 0, k, temp = 600;
+	int count = 0; // 총 정거장의 개수를 리턴해줄 count
+	int transfer = 0; // 총 환승장의 개수
 	int transfer_time = 0; // 환승소요 시간
 
 	//이동경로 저장
@@ -271,49 +294,62 @@ void print(Node subway, char start[], char dest[], int option) {
 	while (1)
 	{
 		path[path_cnt++] = k;  //path[]에 이동 경로 저장
-		// printf("%d\n", k); // 경로 인덱스 확인 - 정상적
-		if (k == (subway.startnumber - 1))break; // 시작 인덱스에 도달하면 끝낸다.
-		count++; // 총 정거장 수 계산
+		printf("%d %s\n", k, subway.name[k]); // 경로 인덱스 확인 - 정상적
+		if (k == (subway.startnumber - 1))break; // 시작 인덱스 직전에 도달하면 끝낸다.
 		k = subway.via[k];
 	}
 
 	//이동 경로 출력
 	printf("\n출발\n");
-	while (strcmp(start, subway.name[path[path_cnt - 1]+1]) == 0) {	//출발역이 환승역일경우 예외처리
+	while (strcmp(start, subway.name[path[path_cnt - 1] + 1]) == 0) {	//출발역이 환승역일경우 예외처리
 		path_cnt--;
-		if (option == 2 && !(strcmp(start, subway.name[path[path_cnt - 1]+1]))) //최소환승이며 출발역이 환승역일경우
+		//printf("%d %d %d\n", path[path_cnt], path[path_cnt - 1], path[path_cnt - 2]); // 테스트
+		//printf("%d %d\n", data[path[i]][path[i + 1]], data[path[i+1]][path[i]]); //테스트
+		if (option == 2 && !(strcmp(start, subway.name[path[path_cnt - 1] + 1]))) //최소환승이며 출발역이 환승역일경우
 		{
 			subway.distance[subway.destnumber - 1] -= 1000; // 1000이 더해져있는 상태이기 때문에 1000을 빼준다.
-		}
+			data[path[path_cnt]][path[path_cnt - 1]] -= 1000; // option2이면 1000이 가중치에도 더해져있기 때문에 빼줘야 한다.
+		} // 좌표가 뒤와는 다르게 [path[path_cnt]][path[path_cnt - 1]]이다.
+		subway.distance[subway.destnumber - 1] -= data[path[path_cnt]][path[path_cnt - 1]]; // 거리에 환승시간이 포함되어있기 때문에 빼준다.
 	}
+	count = path_cnt + 1; // 총 정거장 수 (환승역 포함)
 
+	//printf("─> <%s> %s\n", subway.nosun[path[path_cnt]+1], subway.name[path[path_cnt] + 1]);// 첫번째 역 출력
 	for (i = path_cnt; i >= 1; i--)
 	{	
-		printf("%d\n", subway.distance[i]);
-		// printf("%s %s\n", subway.name[temp], subway.name[path[i] + 1]);
-		if (strcmp(subway.name[temp], subway.name[path[i]]) == 0) {		//환승역 두번출력 방지
-			printf("─> < 환승: 소요시간 %d 분 > %s\n", subway.distance[i - 1] - subway.distance[i], subway.name[path[i]]);
+		if (strcmp(subway.name[temp], subway.name[path[i] + 1]) == 0) {		//환승역 두번출력 방지
+			transfer += 1;
 			if (option == 2)
 			{
-				subway.distance[subway.destnumber - 1] -= 1000;
+				subway.distance[subway.destnumber - 1] -= 1000; // 현재 거리에 환승역마다 1000이 더해져 있는 상태이므로 1000씩 다시 빼주면 된다.
+				printf("─> < 환승: 소요시간 %d 분 > %s\n", data[path[i]][path[i + 1]] - 1000, subway.name[path[i]+1]);
+				transfer_time += data[path[i]][path[i + 1]] - 1000; // 총 환승 소요 시간 구하기
 			}
-			transfer_time += subway.distance[i-1] - subway.distance[i];
-			continue;
+			else {
+				printf("─> < 환승: 소요시간 %d 분 > %s\n", data[path[i]][path[i + 1]], subway.name[path[i]+1]);
+				transfer_time += data[path[i]][path[i + 1]]; // 총 환승 소요 시간 구하기
+			}
+			continue; // 환승을 출력하고 다음 역으로 넘긴다.
 		}
 		if (!(strcmp(dest, subway.name[path[i] + 1])))					//도착역이 환승역일경우 예외처리
 		{
+			// printf("%d %d\n", data[path[i]][path[i + 1]], data[path[i]][path[i - 1]]); //테스트
 			if (option == 2 && !(strcmp(dest, subway.name[path[i] + 1])))	//최소환승이며 도착역이 환승역일경우
 			{
 				subway.distance[subway.destnumber - 1] -= 1000;
+				data[path[i]][path[i + 1]] -= 1000;
 			}
+			subway.distance[subway.destnumber - 1] -= data[path[i]][path[i + 1]]; // 거리에 환승시간이 포함되어있기 때문에 빼준다.
+			transfer++;
 			break;
 		}
-		printf("─> <%s> %s\n", subway.nosun[path[i]], subway.name[path[i]]);
-		temp = path[i];
+		printf("─> <%s> %s\n", subway.nosun[path[i] + 1], subway.name[path[i] + 1]);
+		temp = path[i] + 1;
 	}
 	
-	printf("─> <%s> %s\n", subway.nosun[path[i]], subway.name[path[i] + 1]);// 마지막역 출력
+	printf("─> <%s> %s\n", subway.nosun[path[i] + 1], subway.name[path[i] + 1]);// 마지막역 출력
 
+	count -= transfer;
 	printf(" 정거장 수 : %d 개\n", count);
 	printf(" 소요 시간 : %d분 ( %d분 + 환승 소요 시간: %d분)\n", 
 		subway.distance[subway.destnumber - 1], subway.distance[subway.destnumber - 1]- transfer_time, transfer_time);
