@@ -19,7 +19,7 @@
 
 2. [최단 경로](#2-최단-경로) <br/>
    &nbsp; 2-1. [Dijkstra 알고리즘](#2-1-dijkstra-알고리즘) <br/>
-   &nbsp; 2-2. [Floyd 알고리즘](#2-2-floyd-알고리즘) <br/>
+   &nbsp; 2-2. [Floyd-Warshall 알고리즘](#2-2-floyd-warshall-알고리즘) <br/>
 
 <br/>
 
@@ -149,21 +149,182 @@ prim의 알고리즘은 주 반복문이 정점의 수 n만큼 반복하고, 내
 
 <br/>
 
+최단 경로(shortest path) 문제는 네트워크에서 정점 i와 정점 j를 연결하는 경로 중에서 간선들의 가중치 합이 최소가 되는 경로를 찾는 문제이다. 간선의 가중치는 비용, 거리, 시간 등을 나타낸다.
+
+<br/>
+
+최단 경로 알고리즘은 2가지가 있다. 다익스트라 Dijkstra 알고리즘과 플로이드-워셜 Floyd-Warshall 알고리즘이다. 다익스트라 알고리즘은 시작 정점에서 다른 정점까지의 최단경로를 구한다. 반면 플로이드-워셜 알고리즘은 모든 정점에서 다른 모든 정점까지의 최단 경로를 구한다.
+
+<br/>
+
 <hr/>
 
 ### 2-1. Dijkstra 알고리즘
 
 <br/>
 
+다익스트라 알고리즘은 네트워크에서 시작 정점에서 다른 정점까지의 최단경로를 구한다. 시작 정점 v로부터 최단경로가 이미 발견된 정점들의 집합인 S의 개념을 사용한다. S를 계속해서 **업데이트**해 나가는 것이다. 여기서 1차원 배열인 **distance**의 역할이 중요한데, distance는 최단경로가 알려진 정점들만 이용해 다른 정점들까지의 최단경로의 길이를 저장해놓은 곳이다.
+
+<br/>
+
+다익스트라 알고리즘의 과정은 아래와 같다.
+
+1. 각 단계에서 S안에 있지 않은 정점 중에서 가장 distance값이 작은 정점을 S에 추가한다.
+
+2. 정점 w를 거쳐서 정점 u로 가는 가상적인 경로가 있다고 가정해보자.
+
+3. 그러면 정점 v에서 정점 u까지의 정점 v에서 정점 w까지의 거리 ②와 정점 w에서 정점 u로 가는 거리 ③을 합한 값이 된다.
+
+4. 그러나 경로 ②는 경로 ①보다 항상 길 수 밖에 없다. 왜냐하면 현재 distance값이 가장 작은 정점 u이기 때문이다. 경로 ①로 추가한다.
+
+<img src="img/dijkstra_process.jpg">
+
+<br/>
+
+5. 새로운 정점이 S에 추가되면 distance값 갱신한다. 수식은 아래와 같다.
+
+distance[w] = min(distance[w], distance[u]+weight[u][w])
+
+<img src="img/dijkstra_process2.jpg">
+
+<br/>
+
+아래는 다익스트라 알고리즘의 pseudo-code이다.
+
+```
+// 입력: 가중치 그래프 G, 가중치는 음수가 아님.
+// 출력: distance 배열, distance[u]는 v에서 u까지의 최단 거리이다.
+
+shortest_path(G, v)
+
+S ← {v}
+for 각 정점 w ∈ G do 
+    distance[w] ← weight[v][w];
+
+while 모든 정점이 S에 포함되지 않으면 do
+    u ← 집합 S에 속하지 않는 정점 중에서 최소 distance 정점;
+    S ← S∪{u}
+    for u에 인접하고 S에 있는 각 정점 z do
+        if distance[u] + weight[u][z] < distance[z]
+            then distance[z] ← distance[u] + weight[u][z];
+```
+
+<br/>
+
+다익스트라 알고리즘의 과정을 잘 설명해놓은 참고사이트가 있다. 스텝별로 경로를 어떻게 업데이트해나가는지 자세하게 알 수 있다.
+
+<img src="img/dijstra_site.jpg">
+
+- 사이트 링크: [dijkstra algorithm process](https://www.101computing.net/dijkstras-shortest-path-algorithm/)
+
+<br/>
+
+코드 링크: [다익스트라 알고리즘 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/graph/dijkstra.c)
+
+<br/>
+
+네트워크에 n개의 정점이 존재한다면, 다익스트라 알고리즘의 주 반복문은 n번 반복하고 내부 반복문은 2n번 반복하므로 O(n^2)의 복잡도를 가진다. 
+
+<br/>
+
 <hr/>
 
-### 2-2. Floyd 알고리즘
+### 2-2. Floyd-Warshall 알고리즘
+
+<br/>
+
+플로이드-워셜 알고리즘은 아주 간단한 알고리즘이다. 모든 정점 사이의 최단 경로를 한 번에 모두 찾아주는 알고리즘이다. 2차원 배열을 이용해 3중 반복을 한다. 
+
+<br/>
+
+플로이드-워셜 알고리즘의 과정은 아래와 같다.
+
+1. $A^k$[i][j]는 0부터 k까지의 정점만을 이용한 정점 i에서 j까지의 최단 경로 길이를 의미한다.
+
+2. $A^{-1}$ → $A^0$ → $A^1$ → … → $A^{n-1}$순으로 최단 경로 구해간다.
+
+3. $A^{k-1}$까지 구해진 상태에서 k번째 정점이 추가로 고려되는 상황을
+생각하면 0부터 k까지의 정점만을 사용하여 정점 i에서 정점 j로 가는 최단 경로는 다음의 2가지의 경우로 나뉘어진다
+    - 정점 k를 거치지 않는 경우 : $A^k$[i][j] 는 k보다 큰 정점은 통과하지 않으므로 최단거리는 여전히 $A^{k-1}$[i][j]]임
+    - 정점 k를 거치는 경우 : i에서 k까지의 최단거리 $A^{k-1}$[i][k]에 k에서 j까지의 최단거리 $A^{k-1}$[k][j]를 더한 값
+
+<img src="img/floyd_process.jpg">
+
+<br/>
+
+- Floyd-Warshall 알고리즘의 pseude-code
+
+```
+floyd(G):
+for k ← 0 to n - 1 
+    for i ← 0 to n - 1 
+        for j ← 0 to n - 1
+            A[i][j] = min(A[i][j], A[i][k] + A[k][j])
+```
+
+<br/>
+
+플로이드-워셜 알고리즘을 자세하게 설명해놓은 블로그이다.
+
+- 참고사이트: [floyd-warshall algorithm](https://blog.devgenius.io/floyd-warshall-algorithm-f004a01ae40e)
+
+<br/>
+
+코드 링크: [플로이드-워셜 알고리즘 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/graph/floyd-warshall.c)
+
+<br/>
+
+네트워크에 n개의 정점이 있다면, 플로이드-워셜 알고리즘은 3중 반복문을 실행하므로 시간복잡도는 O(n^3)이 된다. 만약 다익스트라 알고리즘을 이용해 모든 정점의 최단 경로를 구하려면 O(n^2)의 시간복잡도를 가진 알고리즘을 n번 반복해 O(n^3)이 되기 때문에 코드가 훨씬 간단한 플로이드-워셜 알고리즘을 사용하는 것이 좋다.
 
 <br/>
 
 <hr/>
 
 ## 3. 위상 정렬
+
+<br/>
+
+위상 정렬(Topological Sort)은 순서가 정해져있는 작업을 차례대로 수행해야할 때 그 순서를 결정해주기 위해 사용하는 알고리즘이다. 방향 그래프에서 간선 <u, v>가 있다면 정점 u는 정점 v를 선행한다. 방향 그래프 정점들의 선행 순서를 위배하지 않으면서 모든 정점을 나열한다.
+<br/>
+아래의 예는, 대학교 수업의 선수과목 관계이다.
+
+<img src="img/topo_sort.jpg">
+
+위의 위상순서는 (0,1,2,3,4,5), (1,0,2,3,4,5) 등이 될 수 있다. 하지만 **(2,0,1,3,4,5)**는 2번 정점이 0번 정점보다 앞에 오기 때문에 **위상 순서가 아니다.**
+
+<br/>
+
+아래는 그래프 위상 정렬의 pseudo-code이다.
+
+```
+입력: 그래프
+출력: 위상 정렬 결과
+
+topo_sort(Graph)
+
+for i<-0 to n-1 do
+    if (모든 정점이 선행 정점을 가지면)
+        then 사이클이 존재하고 위상 정렬이 불가;
+    선행 정점을 가지지 않는 정점 v 선택;
+    v를 출력;
+    v와 v에서 나온 모든 간선들을 그래프에서 삭제;
+```
+
+pseudo-code의 논리를 그래프에 그대로 적용하면 아래와 같아지고, 위상정렬 순서대로 출력할 수 있게 된다.
+
+<img src="img/topo_sort_process.jpg">
+
+```
+출력 결과: 정점1 -> 정점4 -> 정점0 -> 정점2 -> 정점3 -> 정점5
+```
+
+<br/>
+
+코드 링크: [위상 정렬](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/graph/topological_sort.c)
+
+<br/>
+
+정점의 수를 V, 간선의 수를 E라고 했을 때 위상 정렬의 시간복잡도는 O(V + E)가 된다.
 
 <br/>
 

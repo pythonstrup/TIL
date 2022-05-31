@@ -231,7 +231,7 @@ HeapType *heap = create(); // 동적 메모리 할당 사용
 
 <br/>
 
-히프 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/heap_sort.c)
+히프 정렬 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/heap_sort.c)
 
 <br/>
 
@@ -249,7 +249,7 @@ HeapType *heap = create(); // 동적 메모리 할당 사용
 
 <br/>
 
-히프 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/scheduling.c)
+머신 스케줄링 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/scheduling.c)
 
 <br/>
 
@@ -291,7 +291,7 @@ HeapType *heap = create(); // 동적 메모리 할당 사용
 
 <br/>
 
-히프 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/huffman.c)
+허프만 코드: [링크](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/heap/huffman.c)
 
 <br/><br/>
 
