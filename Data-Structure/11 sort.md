@@ -237,9 +237,21 @@ BubbleSort(A, n)
 
 <br/>
 
+셸 정렬은 삽입 정렬이 어느정도 정렬된 리스트에서 대단히 빠른 것에서 아이디어를 얻은 정렬이다. 삽입 정렬의 문제점은 요소들이 이웃한 위치로만 이동하므로, 많은 이동이 필요하다는 것이다. 그러므로 요소들이 멀리 떨어진 위치로 이동할 수 있게 하면, 적게 이동하여 알맞은 자리를 찾아갈 수 있게 된다. 
+
+<br/>
+
+셸 정렬에서는 전체 리스트를 일정 간격(gap)의 부분 리스트로 나눈다. 나눠진 각각의 부분 리스트를 삽입 정렬한다. 그 과정은 아래와 같다.
+
+<img src="img/shell_process.jpg">
+
 <br/>
 
 코드 링크: [셸 정렬 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/sort/shell.c)
+
+<br/>
+
+셸 정렬은 불연속적인 부분 리스트에서 원거리 자료 이동을 이용하여 적은 이동 연산을 이끌어낼 수 있다는 점, 부분 리스트가 점진적으로 정렬된 상태가 되므로 삽입정렬의 속도를 증가시킨다는 점에서 장점이 있다. 셸 정렬의 시간복잡도는 최악의 경우 O(n^2)이다. 평균적인 경우에는 O(n^1.5)라고 한다.
 
 <br/>
 
@@ -249,9 +261,77 @@ BubbleSort(A, n)
 
 <br/>
 
+합병 정렬은 분할 정복 기법을 이용한 정렬이다. 합병 정렬의 단계는 아래와 같다.
+
+1. 리스트를 두 개의 균등한 크기로 분할하고 분할된 부분리스트를 정렬한다. (분할 정복)
+2. 정렬된 두 개의 부분 리스트를 합하여 전체 리스트를 정렬한다. (합병)
+
+데이터가 많으면서 자주 정렬해야할 때 아주 좋은 성능을 낸다.
+
+<br/>
+
+데이터 {27, 10, 12, 20, 25, 13, 15, 22}를 합병 정렬을 이용해 정렬하는 과정을 그림으로 표현한 것이다.
+
+<img src="img/merge_process.jpg">
+
+<br/>
+
+- merge의 pseudo-code
+
+```
+merge(list, left, mid, right): 
+// 2개의 인접한 배열 list[left..mid]와 list[mid+1..right]를 합병
+    i←left;
+    j←mid+1;
+    k←left;
+    while i≤mid and j≤right do
+        if(list[i]<list[j]) 
+            then
+                sorted[k]←list[i];
+                k++;
+                i++;
+            else
+                sorted[k]←list[j];
+                k++;
+                j++;
+
+    요소가 남아있는 부분배열을 sorted로 복사한다;
+    sorted를 list로 복사한다;
+```
+
+<br/>
+
+- merge_sort의 pseudo-code
+
+```
+merge_sort(list, left, right)
+    if left < right
+        mid = (left+right)/2;
+        merge_sort(list, left, mid);
+        merge_sort(list, mid+1, right);
+        merge(list, left, mid, right);
+```
+
 <br/>
 
 코드 링크: [합병 정렬 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/sort/merge.c)
+
+<br/>
+
+합병 정렬의 시간복잡도를 알아보자.
+
+- 비교 횟수
+    - 크기 n개인 리스트를 계속해서 2로 나눔 => log(n)개의 패스
+    - 각 패스에서 리스트의 모든 레코드 n개를 비교 => n번의 비교 연산
+
+<br/>
+
+- 이동 횟수
+    - 레코드의 이동이 각 패스에서 2n번 발생하므로 전체 레코드의 이동은 2n*log(n)번 발생
+    - 레코드의 크기가 큰 경우에는 매우 큰 시간적 낭비 초래
+    - 레코드를 연결 리스트로 구성하여 합병 정렬할 경우, 매우 효율적
+
+최적, 평균, 최악의 경우 큰 차이 없이 O(n log n)의 복잡도를 가진다. 안정적인 정렬 방법이며, 데이터의 초기 분산 순서에 영향을 덜 받는다는 장점이 있다.
 
 <br/>
 
@@ -261,9 +341,87 @@ BubbleSort(A, n)
 
 <br/>
 
+퀵 정렬은 평균적으로 가장 빠른 수행 속도를 가진 정렬 방식이다. 퀵 정렬도 합병 정렬과 마찬가지로 분할 정복 기법을 사용한다. 전체 리스트를 2개의 부분 리스트로 분할하고, 각각의 부분리스트를 다시 퀵 정렬한다. 퀵 정렬에서는 피봇의 역할이 중요한데 피봇을 기준으로 정렬를 계속해서 반복한다. 그 자세한 과정은 아래와 같다.
+
+1. 현재 리스트에서 피봇을 정한다.
+2. 피봇을 기준으로 2개의 리스트로 분할한다. 피봇보다 작은 값은 왼쪽으로 큰 값은 오른쪽으로 옮긴다.
+3. 나눠진 부분리스트 사이에 피봇값을 넣어준다.
+4. 1~3과정을 분할된 리스트에 대해 반복한다.
+
+<img src="img/quick_process.jpg">
+
+<br/>
+
+- 퀵 정렬 함수
+
+```c
+void quick_sort(int list[], int left, int right)
+{ 
+    if(left<right){ 
+        int q=partition(list, left, right);
+        quick_sort(list, left, q-1); 
+        quick_sort(list, q+1, right); 
+    }
+}
+```
+
+<br/>
+
+- partition 함수
+
+```c
+#define SWAP(x, y, t) ( (t)=(x), (x)=(y), (y)=(t) )
+
+int partition(int list[], int left, int right)
+{
+    int pivot, temp;
+    int low,high;
+
+    low = left; 
+    high = right+1;
+    pivot = list[left]; 
+
+    do {
+        do
+            low++;
+        while(low<=right &&list[low]<pivot); 
+
+        do
+            high--;
+        while(high>=left && list[high]>pivot);
+        
+        if(low<high) 
+            SWAP(list[low], list[high], temp); 
+
+    } while(low<high);
+
+    SWAP(list[left], list[high], temp); 
+    return high;
+}
+```
+
 <br/>
 
 코드 링크: [퀵 정렬 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/sort/quick.c)
+
+<br/>
+
+퀵 정렬의 시간복잡도를 알아보자.
+
+- 최선의 경우(거의 균등한 리스트로 분할)
+    - 패스 수: log(n) => 1/2로 문제가 분할된다.
+    - 각 패스에서의 비교 횟수: n회
+    - 종합적인 비교횟수: n log n
+
+<br/>
+
+- 최악의 경우(극도로 불균등한 리스트로 분할)
+    - 패스 수: n개
+    - 각 패스에서의 비교 횟수: n회
+    - 종합적인 비교횟수: n^2
+    - ex) 이미 정렬된 리스트를 정렬
+    - <img src="img/quick_worst.jpg">
+    - 중간값을 피봇으로 선택하면 불균등 분할을 완화할 수 있다.
 
 <br/>
 
