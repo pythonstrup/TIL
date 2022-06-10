@@ -431,9 +431,36 @@ int partition(int list[], int left, int right)
 
 <br/>
 
+기수 정렬이란 비교연산을 수행하지 않아 조건이 맞는 상황에서 빠른 정렬 속도를 보장하는 알고리즘이다. 전체적인 컨셉은 데이터의 각 자릿수를 낮은 자리수에서부터 가장 큰 자리수까지 올라가면서 정렬을 수행하는 것이다. 대신 메모리를 기존 정렬보다 많이 사용한다는 단점이 존재한다.
+
+<img src="img/radix.png">
+- 사진 출처: https://www.codingeek.com/wp-content/uploads/2017/02/radix.png
+
+<br/>
+
+- 기수 정렬의 pseudo-code
+
+```
+RadixSort(list, n) 
+    for d←LSD의 위치 to MSD의 위치 do 
+    { 
+        d번째 자릿수에 따라 0번부터 9번 버켓에 넣는다. 
+        버켓에서 숫자들을 순차적으로 읽어서 하나의 리스트로 합친다. 
+        d++; 
+    } 
+```
+
+<br/>
+
+기수 정렬에서 버켓은 큐로 구현된다. 큐는 선입선출의 특징을 가지고 있다는 점을 기억해야한다. 버켓은 키의 표현방법과 밀접한 연관성을 지닌다. 만약 이진법을 사용한다면 필요한 버켓의 수는 2개가 될 것이다. 알파벳 문자라면 26개가 필요하다.
+
 <br/>
 
 코드 링크: [기수 정렬 코드](https://github.com/pythonstrup/TIL/tree/main/Data-Structure/sort/radix.c)
+
+<br/>
+
+n개의 레코드, d개의 자릿수로 이뤄진 키를 기수 정렬할 경우 기수정렬의 시간 복잡도에 대해서 알아보자. 메인 루프는 자릿수만큼 d번 반복될 것이고, 큐에 n개의 레코드 입력을 수행하기 때문에 시간복잡도는 O(dn)이다. 다른 정렬에 비하면 아주 속도가 빠른 정렬이다. 그러나 실수, 한글, 한자로 이루어진 키를 정렬하기 어렵다는 문제가 있다.
 
 <br/>
 
@@ -442,6 +469,17 @@ int partition(int list[], int left, int right)
 ## 3. 정렬 알고리즘의 비교
 
 <br/>
+
+- 성능 비교
+
+<img src="img/performance.jpg">
+
+
+<br/>
+
+- 정수 6만 개를 대상으로한 실제 실행 결과
+
+<img src="img/performance2.jpg">
 
 <br/>
 
