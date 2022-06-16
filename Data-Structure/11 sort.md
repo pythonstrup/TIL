@@ -434,6 +434,7 @@ int partition(int list[], int left, int right)
 기수 정렬이란 비교연산을 수행하지 않아 조건이 맞는 상황에서 빠른 정렬 속도를 보장하는 알고리즘이다. 전체적인 컨셉은 데이터의 각 자릿수를 낮은 자리수에서부터 가장 큰 자리수까지 올라가면서 정렬을 수행하는 것이다. 대신 메모리를 기존 정렬보다 많이 사용한다는 단점이 존재한다.
 
 <img src="img/radix.png">
+
 - 사진 출처: https://www.codingeek.com/wp-content/uploads/2017/02/radix.png
 
 <br/>
