@@ -170,7 +170,7 @@ int search_binary(int key, int low, int high)
 
 <br/>
 
-이진 탐색은 반복될 때마다 탐색 범위를 1/2로 줄여가므로 시간복잡도는 O(log n)이 된다.
+이진 탐색은 반복될 때마다 탐색 범위를 1/2로 줄여가므로 시간복잡도는 O(log<sub>2</sub>n)이 된다.
 
 <br/>
 
@@ -225,7 +225,7 @@ int interpolatoin_search(int key, int n)
 
 <br/>
 
-보간 탐색은 이진 탐색과 비슷한 O(log n)의 시간복잡도를 가진다.
+보간 탐색은 이진 탐색과 비슷한 O(log<sub>2</sub>n)의 시간복잡도를 가진다.
 
 <br/>
 
