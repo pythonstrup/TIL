@@ -6,6 +6,8 @@
 
 - Abraham Silberschatz, Operating System Concept
 
+- https://rebro.kr/
+
 <hr/>
 
 ## 목차
