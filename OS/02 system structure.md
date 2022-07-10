@@ -1,11 +1,5 @@
 # 02 시스템 구조 System Structure
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
 <hr/>
 
 ## 목차
@@ -346,5 +340,13 @@
 <img src="img/program-exe.jpg">
 
 <br/>
+
+<hr/>
+
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
 
 <hr/>

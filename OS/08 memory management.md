@@ -1,15 +1,5 @@
 # 08 메모리 관리 Memory Management
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
-- https://rebro.kr/
-
-- https://dailyheumsi.tistory.com/138
-
 <hr/>
 
 ## 목차
@@ -566,5 +556,17 @@ Segmentation은 paging과 마찬가지로 segment들이 연속적으로 할당�
 - 페이지 테이블의 시작 위치를 얻었으므로 그 위치에서 페이지 번호만큼 떨어진 페이지 테이블 항목에서 물리적 메모리의 페이지 프레임 위치를 얻을 수 있다.
 
 <br/>
+
+<hr/>
+
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
+
+- https://rebro.kr/
+
+- https://dailyheumsi.tistory.com/138
 
 <hr/>

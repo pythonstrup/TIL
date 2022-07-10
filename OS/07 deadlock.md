@@ -1,13 +1,5 @@
 # 07 교착 상태 Deadlock
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
-- https://rebro.kr/
-
 <hr/>
 
 ## 목차
@@ -282,5 +274,15 @@ Recovery의 방법은 3가지가 있다. Deadlock에 연루된 프로세스를 �
 Deadlock이 일어나지 않는다고 생각하고 아무런 조치도 취하지 않는 방식이다. Deadlock이 매우 드물게 발생하기 때문에 Deadlock에 대한 조치 자체가 큰 오버헤드를 만들 수 있기 때문이다. 따라서 만약 시스템에 Deadlock이 발생한 경우, 시스템이 비정상적으로 작동하는 것을 사용자가 문제를 인식해 직접 프로세스를 죽이는 등의 방법으로 대처한다. 이 방식은 UNIX, Windows 등 대부분의 범용 운영체제가 채택하는 방식이다. 
 
 <br/>
+
+<hr/>
+
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
+
+- https://rebro.kr/
 
 <hr/>

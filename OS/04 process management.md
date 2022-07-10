@@ -1,13 +1,5 @@
 # 04 프로세스 관리 Process Management
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
-- https://rebro.kr/
-
 <hr/>
 
 ## 목차
@@ -289,5 +281,15 @@ int main()
 <br/>
 
 <br/>
+
+<hr/>
+
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
+
+- https://rebro.kr/
 
 <hr/>

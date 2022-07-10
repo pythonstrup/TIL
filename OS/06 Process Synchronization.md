@@ -1,13 +1,5 @@
 # 06 프로세스 동기화 Process Synchronization
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
-- https://rebro.kr/
-
 <hr/>
 
 ## 목차
@@ -521,5 +513,15 @@ monitor를 이용해 Dining Philosophers 문제를 해결한 코드이다.
 - test를 이용해 양쪽 젓가락을 사용할 수 있는지 확인한다.(Deadlock 방지)
 
 <br/>
+
+<hr/>
+
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
+
+- https://rebro.kr/
 
 <hr/>

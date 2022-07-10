@@ -1,13 +1,5 @@
 # 05 CPU 스케줄링 - CPU Scheduling
 
-## 출처
-
-- 반효경, 운영체제와 정보기술의 원리
-
-- Abraham Silberschatz, Operating System Concept
-
-- https://rebro.kr/
-
 <hr/>
 
 ## 목차
@@ -357,3 +349,12 @@ Thread는 한 프로세스 안에 CPU 수행단위가 여러 개 있는 것을 �
 
 <hr/>
 
+## 출처
+
+- 반효경, 운영체제와 정보기술의 원리
+
+- Abraham Silberschatz, Operating System Concept
+
+- https://rebro.kr/
+
+<hr/>
