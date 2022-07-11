@@ -4,34 +4,18 @@
 
 ## 목차
 
-1. [가상 메모리의 개념](#1-가상-메모리의-개념) <br/>
-   &nbsp; 1-1. [가상 메모리란](#1-1-가상-메모리란) <br/>
-   &nbsp; 1-2. [Demand Paging](#1-2-demand-paging) <br/>
+1. [파일 시스템의 개념](#1-파일-시스템의-개념) <br/>
+   &nbsp; 1-1. [파일과 파일 시스템](#1-1-파일과-파일-시스템) <br/>
+   &nbsp; 1-2. [디렉토리와 파티션](#1-2-디렉토리와-파티션) <br/>
+   &nbsp; 1-3. [파일 보호 File Protection](#1-3-파일-보호-file-protection) <br/>
+   &nbsp; 1-4. [Mounting](#1-4-mounting) <br/>
 
 <br/>
 
-2. [Page Replacement](#2-page-replacement) <br/>
-   &nbsp; 2-1. [Optimal Algorithm](#2-1-optimal-algorithm) <br/>
-   &nbsp; 2-2. [FIFO Algorithm](#2-2-fifo-algorithm) <br/>
-   &nbsp; 2-3. [LRU Algorithm](#2-3-lru-algorithm) <br/>
-   &nbsp; 2-4. [LFU Algorithm](#2-4-lfu-algorithm) <br/>
-   &nbsp; 2-5. [Clock Algorithm(Second Chance Algorithm)](#2-5-clock-algorithmsecond-chance-algorithm) <br/>
-
-<br/>
-
-3. [Page Frame Allocation](#3-page-frame-allocation) <br/>
-   &nbsp; 3-1. [Allocation Problem](#3-1-allocation-problem) <br/>
-   &nbsp; 3-2. [Frame 그룹에 따른 Replacement](#3-2-frame-그룹에-따른-replacement) <br/>
-
-<br/>
-
-4. [Thrashing](#4-thrashing) <br/>
-   &nbsp; 4-1. [Thrashing이란](#4-1-thrashing이란) <br/>
-   &nbsp; 4-2. [Thrashing Prevention](#4-2-thrashing-prevention) <br/>
-
-<br/>
-
-5. [Page Size 결정](#5-page-size-결정) <br/>
+2. [Access Method](#2-access-method) <br/>
+   &nbsp; 2-1. [순차 접근 Sequential Access](#2-1-순차-접근-sequential-access) <br/>
+   &nbsp; 2-2. [직접 접근 Direct Access (Random Access)](#2-2-직접-접근-direct-access-random-access) <br/>
+   &nbsp; 2-3. [색인 접근 Index Access](#2-3-색인-접근-index-access) <br/>
 
 <br/><br/>
 
@@ -192,7 +176,7 @@ A named collection of related information
 
 <hr/>
 
-### 2-3. 색인 접근(Index Access)
+### 2-3. 색인 접근 Index Access
 
 <br/>
  
