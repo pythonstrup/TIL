@@ -350,3 +350,7 @@
 - Abraham Silberschatz, Operating System Concept
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>

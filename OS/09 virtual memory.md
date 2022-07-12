@@ -401,3 +401,7 @@ Page Size가 감소하면 페이지 수 증가하고 entry가 많아지기 때�
 - https://velog.io/@zzarbttoo/OSVirtual-MemoryPage-Fault-Page-Frame-Allocation-Page-Size
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>

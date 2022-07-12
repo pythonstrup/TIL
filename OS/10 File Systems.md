@@ -168,9 +168,15 @@ A named collection of related information
 
 <br/>
 
-<img src="img/random-access.png">
+<img src="img/direct-access.png">
 
-파일을 구성하는 레코드를 임의의 순서로 접근할 수 있다. LP 판을 사용하는 방식과 비슷하다. 읽기나 쓰기의 순서에 제약이 없으며 현재 위치를 유지할 수 있다면 이를 통해 순차 접근 기능도 구현할 수 있다.
+파일을 구성하는 레코드를 임의의 순서로 접근할 수 있다. 원하는 데이터를 기억 장치로부터 호출할 때, 데이터가 저장된 위치나 접근 시간에 구애받지 않는다는 특징이 있다. LP 판을 사용하는 방식과 비슷하다. 읽기나 쓰기의 순서에 제약이 없으며 현재 위치를 유지할 수 있다면 이를 통해 순차 접근 기능도 구현할 수 있다.
+
+<br/>
+
+- 순차접근과 직접접근의 차이
+
+<img src="img/random-access.png">
 
 <br/>
 
@@ -197,5 +203,9 @@ A named collection of related information
 - https://rebro.kr/
 
 - https://woonys.tistory.com/m/entry/PintOS-Project-4-File-system-1-%EC%A0%95%EA%B8%80%EC%82%AC%EA%B4%80%ED%95%99%EA%B5%90-85%EC%9D%BC%EC%B0%A8-TIL
+
+<hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
 
 <hr/>

@@ -525,3 +525,7 @@ monitor를 이용해 Dining Philosophers 문제를 해결한 코드이다.
 - https://rebro.kr/
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>

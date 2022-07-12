@@ -345,3 +345,7 @@ CPU가 다른 프로세스로 넘어갈 때, 운영체제는 CPU를 내어주는
 - Abraham Silberschatz, Operating System Concept
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>

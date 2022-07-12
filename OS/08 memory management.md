@@ -570,3 +570,7 @@ Segmentation은 paging과 마찬가지로 segment들이 연속적으로 할당�
 - https://dailyheumsi.tistory.com/138
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>

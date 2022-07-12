@@ -358,3 +358,7 @@ Thread는 한 프로세스 안에 CPU 수행단위가 여러 개 있는 것을 �
 - https://rebro.kr/
 
 <hr/>
+
+#### Edited by pythonstrup (myvelop.tistory.com)
+
+<hr/>
