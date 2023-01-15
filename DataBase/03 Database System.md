@@ -25,6 +25,8 @@
    &nbsp; 3-3. [최종 사용자](#3-3-최종-사용자-end-user) <br/>
    &nbsp; 3-4. [응용 프로그래머](#3-4-응용-프로그래머-application-programmer) <br/>
 
+<br/>
+
 4. [데이터 언어](#4-데이터-언어) <br/>
    &nbsp; 4-1. [데이터 언어란?](#4-1-데이터-언어란) <br/>
    &nbsp; 4-2. [데이터 정의어](#4-2-데이터-정의어ddl-data-definition-language) <br/>
