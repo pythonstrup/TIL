@@ -4,45 +4,42 @@
 
 ## 목차
 
-1. [CPU 스케줄링](#1-cpu-스케줄링) <br/>
-   &nbsp; 1-1. [CPU Burst](#1-1-cpu-burst) <br/>
-   &nbsp; 1-2. [CPU Scheduler](#1-2-cpu-scheduler) <br/>
-   &nbsp; 1-3. [Dispatcher](#1-3-dispatcher) <br/>
+1. [데이터와 프로세스](#1-데이터와-프로세스) <br/>
+   &nbsp; 1-1. [데이터의 접근](#1-1-데이터의-접근) <br/>
+   &nbsp; 1-2. [Race Condition](#1-2-race-condition) <br/>
+   &nbsp; 1-3. [Process Synchronization Problem](#1-3-process-synchronization-problem) <br/>
 
 <br/>
 
-2. [스케줄링 알고리즘 Scheduling Algorithm](#2-스케줄링-알고리즘-scheduling-algorithm) <br/>
-   &nbsp; 2-1. [비선점형 스케줄링 Non-Preemptive Scheduling](#2-1-비선점형-스케줄링-non-preemptive-scheduling) <br/>
-   &nbsp; 2-2. [선점형 스케줄링 Preemptive Scheduling](#2-2-선점형-스케줄링-preemptive-scheduling) <br/>
-   &nbsp; 2-3. [알고리즘의 성능 척도](#2-3-알고리즘의-성능-척도) <br/>
+2. [동기화 알고리즘](#2-동기화-알고리즘-sychronization-algorithms) <br/>
+   &nbsp; 2-1. [알고리즘1](#2-1-algorithm-1) <br/>
+   &nbsp; 2-2. [알고리즘2](#2-2-algorithm-2) <br/>
+   &nbsp; 2-3. [알고리즘3](#2-3-algorithm-3--petersons-algorithm) <br/>
 
 <br/>
 
-3. [다양한 경우에서의 스케줄링](#3-다양한-경우에서의-스케줄링) <br/>
-   &nbsp; 3-1. [Multiple Processor Scheduling](#3-1-multiple-processor-scheduling) <br/>
-   &nbsp; 3-2. [Real Time Scheduling](#3-2-real-time-scheduling) <br/>
-   &nbsp; 3-3. [Thread Scheduling](#3-3-thread-scheduling) <br/>
+3. [동기화 하드웨어](#3-동기화-하드웨어-sychronization-hardware) <br/>
 
 <br/>
 
-4. [다양한 경우에서의 스케줄링](#3-다양한-경우에서의-스케줄링) <br/>
-   &nbsp; 4-1. [Multiple Processor Scheduling](#3-1-multiple-processor-scheduling) <br/>
-   &nbsp; 4-2. [Real Time Scheduling](#3-2-real-time-scheduling) <br/>
-   &nbsp; 4-3. [Thread Scheduling](#3-3-thread-scheduling) <br/>
+4. [세마포어](#4-세마포어-semaphores) <br/>
+   &nbsp; 4-1. [Semaphores 적용](#4-1-semaphores-적용) <br/>
+   &nbsp; 4-2. [Block & Wakeup](#4-2-block--wakeup-방식) <br/>
+   &nbsp; 4-3. [교착과 기아](#4-3-교착과-기아-상태-deadlock-and-starvationg) <br/>
 
 <br/>
 
-5. [다양한 경우에서의 스케줄링](#3-다양한-경우에서의-스케줄링) <br/>
-   &nbsp; 5-1. [Multiple Processor Scheduling](#3-1-multiple-processor-scheduling) <br/>
-   &nbsp; 5-2. [Real Time Scheduling](#3-2-real-time-scheduling) <br/>
-   &nbsp; 5-3. [Thread Scheduling](#3-3-thread-scheduling) <br/>
+5. [고전적인 동기화 문제](#5-고전적인-동기화-문제-classical-problem-of-sunchronization) <br/>
+   &nbsp; 5-1. [Bounded Buffer Problem](#5-1-bounded-buffer-problemproducer-consumer-problem) <br/>
+   &nbsp; 5-2. [Readers & Writers Problem](#5-2-readers-and-writers-problem) <br/>
+   &nbsp; 5-3. [식사하는 철학자 문제](#5-3-dining-philosophers-problem) <br/>
 
 <br/>
 
-6. [다양한 경우에서의 스케줄링](#3-다양한-경우에서의-스케줄링) <br/>
-   &nbsp; 6-1. [Multiple Processor Scheduling](#3-1-multiple-processor-scheduling) <br/>
-   &nbsp; 6-2. [Real Time Scheduling](#3-2-real-time-scheduling) <br/>
-   &nbsp; 6-3. [Thread Scheduling](#3-3-thread-scheduling) <br/>
+6. [Monitor](#6-monitor) <br/>
+   &nbsp; 6-1. [Monitor의 개념](#6-1-monitor의-개념) <br/>
+   &nbsp; 6-2. [Bounded Buffer Problem](#6-2-bounded-buffer-problem) <br/>
+   &nbsp; 6-3. [식사하는 철학자 문제](#6-3-dining-philosophers) <br/>
 
 <br/><br/>
 
@@ -84,31 +81,31 @@
 OS에서 race condition이 발생하는 시점은 아래와 같다.
 
 1. kernel 수행 중 인터럽트 발생 시
-    - `count++`이라고 적힌 코드는 3가지 instruction에 의해서 수행된다. Load, Increment, Store
-    - 해당 작업이 수행될 때 인터럽트가 들어오면 `count++`을 멈추고 인터럽트 처리루틴으로 넘어가 Interrupt handler가 실행된다.
-    - **Interrupt handler**는 커널에 있는 코드이다.
-    - Interrupt handler에 있는 내용인 `count--`가 실행되면 루틴을 빠져나와 본래 실행 중이던 주소로 돌아와 `count++`을 실행한다.
-    - 결과적으로는 1을 감소 시킨 것은 반영이 되지 않고 1을 증가시킨 것만 반영된다. 왜냐하면 `count++`는 count를 감소시키기 전의 값을 가져와 증가시켜 저장하기 때문이다.
-    - <img src="img/race-type-interrupt.jpg">
-    - 작업이 진행되는 동안 Interrupt를 막는다면 해당 문제를 해결할 수 있다.
+   - `count++`이라고 적힌 코드는 3가지 instruction에 의해서 수행된다. Load, Increment, Store
+   - 해당 작업이 수행될 때 인터럽트가 들어오면 `count++`을 멈추고 인터럽트 처리루틴으로 넘어가 Interrupt handler가 실행된다.
+   - **Interrupt handler**는 커널에 있는 코드이다.
+   - Interrupt handler에 있는 내용인 `count--`가 실행되면 루틴을 빠져나와 본래 실행 중이던 주소로 돌아와 `count++`을 실행한다.
+   - 결과적으로는 1을 감소 시킨 것은 반영이 되지 않고 1을 증가시킨 것만 반영된다. 왜냐하면 `count++`는 count를 감소시키기 전의 값을 가져와 증가시켜 저장하기 때문이다.
+   - <img src="img/race-type-interrupt.jpg">
+   - 작업이 진행되는 동안 Interrupt를 막는다면 해당 문제를 해결할 수 있다.
 
 <br/>
 
 2. Process가 System call을 하여 kernel mode로 수행 중인데 context switch가 일어나는 경우
-    - 아래 같은 P<sub>A</sub>가 있는데, system call이 일어나 kernel mode일 때 P<sub>B</sub>가 CPU 제어권을 가져갔다.
-    - <img src="img/race-type-preempt.jpg">
-    - kernel mode일 때 CPU를 선점하면??
-    - 아래와 그림을 보면 원래는 count가 2가 증가해야하지만 P<sub>B</sub>의 `count++`은 적용되지 않아 1만 증가하게 된다. 동기화(Synchronization) 문제가 발생한 것이다.
-    - kernel mode일 때는 선점당하지 않도록 해야한다.
-    - <img src="img/race-type-preempt2.jpg">
+   - 아래 같은 P<sub>A</sub>가 있는데, system call이 일어나 kernel mode일 때 P<sub>B</sub>가 CPU 제어권을 가져갔다.
+   - <img src="img/race-type-preempt.jpg">
+   - kernel mode일 때 CPU를 선점하면??
+   - 아래와 그림을 보면 원래는 count가 2가 증가해야하지만 P<sub>B</sub>의 `count++`은 적용되지 않아 1만 증가하게 된다. 동기화(Synchronization) 문제가 발생한 것이다.
+   - kernel mode일 때는 선점당하지 않도록 해야한다.
+   - <img src="img/race-type-preempt2.jpg">
 
 <br/>
 
 3. Multiprocessor에서 shared memory 내의 kernel data
-    - CPU가 여러 개 있는 환경, 자주 등장하는 상황은 아니다.
-    - 작업 주체가 여럿이기 때문에 발생하는 문제이다.
-    - 데이터를 수정하기 전에 해당 데이터에 lock을 걸어 다른 주체가 접근하지 못하게 해야 한다. 
-    - <img src="img/race-type-multiprocessor.jpg">
+   - CPU가 여러 개 있는 환경, 자주 등장하는 상황은 아니다.
+   - 작업 주체가 여럿이기 때문에 발생하는 문제이다.
+   - 데이터를 수정하기 전에 해당 데이터에 lock을 걸어 다른 주체가 접근하지 못하게 해야 한다.
+   - <img src="img/race-type-multiprocessor.jpg">
 
 <br/>
 
@@ -147,6 +144,7 @@ do {
 <br/>
 
 #### 전제
+
 - 프로세스의 critical section 문제를 해결한다.
 - 모든 프로세스의 수행 속도는 0보다 크다.
 - 프로세스들 간의 상대적인 수행 속도는 가정하지 않는다.
@@ -175,7 +173,7 @@ do {
 
 <hr/>
 
-### 3-1. Algorithm 1
+### 2-1. Algorithm 1
 
 <br/>
 
@@ -192,7 +190,7 @@ do {
 
 <hr/>
 
-### 3-2. Algorithm 2
+### 2-2. Algorithm 2
 
 <br/>
 
@@ -209,7 +207,7 @@ do {
 
 <hr/>
 
-### 3-3. Algorithm 3 = Peterson's Algorithm
+### 2-3. Algorithm 3 = Peterson's Algorithm
 
 <br/>
 
@@ -236,7 +234,6 @@ do {
 
 - 위의 Test_and_Set(a) instruction은 `a`의 현재 값을 읽어오고 `a`를 1로 바꿔주는 명령이다. 두 개를 한 번에 처리한다.
 
-
 <br/>
 
 - Test_and_Set() instruction을 이용한 상호 배제(Mutual Exclusion)
@@ -244,7 +241,7 @@ do {
 ```
 Synchronization variable :
 	boolean lock = false;
-   
+
 Process Pi
 	do {
 		while (Test_and_Set(lock));
@@ -271,7 +268,7 @@ Process Pi
 <br/>
 
 세마포어는 두 종류가 있다. **Counting Semaphore**는 도메인(범위)이 0 이상인 정수값이다. 주로 자원의 개수를 세는 데(resourse counting) 사용한다. **Binary Semaphore(=mutex)**는 정수 값이 오직 0 또는 1이다. 주로 mutual exclusion(lock/unlock)에 사용된다.
- 
+
 <br/>
 
 <hr/>
@@ -302,7 +299,7 @@ type struct{
 ```
 
 `block`을 수행하면, 커널은 `block`을 호출한 프로세스를 suspend 시키고 해당 프로세스의 `PCB`를 `wait queue`에 넣어준다. 
-`Wakeup`을 수행하면 `block` 된 프로세스 P를 깨운 다음, 이 프로세스의 `PCB`를 `Ready Queue`로 이동시킨다. 
+`Wakeup`을 수행하면 `block` 된 프로세스 P를 깨운 다음, 이 프로세스의 `PCB`를 `Ready Queue`로 이동시킨다.
 
 <img src="img/semaphores2.jpg">
 
@@ -389,9 +386,10 @@ V(S){
 
 Readers-Writers Problem은 한 프로세스가 DB에 데이터를 write하는 작업을 수행할 때 다른 프로세스가 접근하면 안 되고, 읽는 작업은 여러 프로세스가 동시에 수행 가능하도록 하는 문제이다.  만약 데이터에 대해 하나의 lock을 사용하게 되면 데이터의 일관성은 지킬 수 있으나, 여러 프로세스가 동시에 읽을 수 없다면 매우 비효율적일 것이다. 
 문제 해결법은 아래와 같다.
+
 - Writer가 DB에 접근 허가를 얻지 못한 상태에서는 모든 대기 중인 Reader들이 DB에 접근할 수 있게 허용한다.
-- Writer는 대기 중인 Reader가 하나도 없는 경우 접근하도록 한다. 
-- Writer가 접근 중이면 Reader들은 접근할 수 없도록 한다. 
+- Writer는 대기 중인 Reader가 하나도 없는 경우 접근하도록 한다.
+- Writer가 접근 중이면 Reader들은 접근할 수 없도록 한다.
 - Writer가 DB를 빠져나가야만 Reader들의 접근이 허용된다.
 
 <img src="img/readers-and-writers2.png">
@@ -439,9 +437,9 @@ Philosopher i
 <br/>
 
 - 해결 방안
-    - 4명의 철학자만 테이블에 동시에 앉을 수 있도록 한다.
-    - 젓가락을 두 개 모두 집을 수 있을 때만 젓가락을 집을 수 있게 한다.
-    - 비대칭 전략을 사용한다. 짝수 철학자는 왼쪽 젓가락을 홀수 철학자는 오른쪽 젓가락을 먼저 집도록 설계한다.
+  - 4명의 철학자만 테이블에 동시에 앉을 수 있도록 한다.
+  - 젓가락을 두 개 모두 집을 수 있을 때만 젓가락을 집을 수 있게 한다.
+  - 비대칭 전략을 사용한다. 짝수 철학자는 왼쪽 젓가락을 홀수 철학자는 오른쪽 젓가락을 먼저 집도록 설계한다.
 
 <br/>
 
@@ -469,7 +467,7 @@ Semaphore는 동기화를 도와주지만 여러가지 문제점을 가지고 �
 
 <br/>
 
-위 문제를 해결하기 위해 Monitor를 사용할 수 있다. Monitor(모니터)는 동시 수행 중인 프로세스 사이에서 추상 데이터(abstract data type)의 안전한 공유를 보장하기 위한 High-level 동기화 구조이다. 공유 데이터를 접근하기 위해서는 모니터의 내부 Procedure를 통해서만 접근할 수 있도록 한다. 
+위 문제를 해결하기 위해 Monitor를 사용할 수 있다. Monitor(모니터)는 동시 수행 중인 프로세스 사이에서 추상 데이터(abstract data type)의 안전한 공유를 보장하기 위한 High-level 동기화 구조이다. 공유 데이터를 접근하기 위해서는 모니터의 내부 Procedure를 통해서만 접근할 수 있도록 한다.
 
 <img src="img/monitor1.png">
 
@@ -479,7 +477,6 @@ Semaphore는 동기화를 도와주지만 여러가지 문제점을 가지고 �
  
 세마포어와의 가장 큰 차이점은 모니터는 락(Lock)을 걸 필요가 없다는 것이다. 세마포어는 프로그래머가 직접 wait와 signal을 사용하여 Race condition을 해결하지만 모니터는 내부의 기능으로 해결할 수 있다.<br/>
 모니터 내에서는 한 번에 하나의 프로세스만 활동이 가능하고 프로그래머가 동기화 제약 조건을 명시적으로 코딩할 필요도 없다. 또한, 프로세스가 모니터 안에서 기다릴 수 있도록 하기 위해 `condition variable`을 사용한다. `condition variable`은 wait와 signal 연산에 의해서만 접근이 가능하다.
-
 
 <br/>
 
