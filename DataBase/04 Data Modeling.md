@@ -1,4 +1,4 @@
-# 데이터 모델링 Data Modeling
+# 04 데이터 모델링 Data Modeling
 
 ## 목차
 
