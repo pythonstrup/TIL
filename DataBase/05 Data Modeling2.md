@@ -143,3 +143,9 @@
 - 전체
 
 <img src="img/concept-design13.png">
+
+<br/><br/>
+
+# 참고자료
+
+- 데이터베이스의 원리와 응용, 한양대학교 백현미, KOCW
