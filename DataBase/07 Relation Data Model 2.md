@@ -197,4 +197,4 @@
 
 # 참고자료
 
--데이터베이스 설계: file:///Users/bagjonghyeog/Downloads/2%ED%8C%90*ch08*%EB%8D%B0%EC%9D%B4%ED%84%B0%EB%B2%A0%EC%9D%B4%EC%8A%A4%20%EC%84%A4%EA%B3%84.pdf
+- 데이터베이스의 원리와 응용, 한양대학교 백현미, KOCW
