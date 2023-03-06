@@ -45,7 +45,6 @@
   2. Agent Nodes/Clouds(과거 Jenkins Slave)
 
 <img src="img/concept1.png">
-<img src="img/concept2.png">
 
 ### Jenkins Server (Master)
 
@@ -70,6 +69,8 @@
 - Agent와 Server가 연결되는 방법은 2가지이다.
   1. SSH: SSH 프로토콜을 이용해 Agent에 연결하는 방식으로 Server에서 연결이 시작된다. 22번 포트를 사용해 연결한다. (대체로 SSH를 사용할 때 22번를 사용한다.)
   2. JNPL: Java Network Launch Protocol의 약자로 50000번 포트를 사용해 Agent로부터 연결하는 작업으로 Jenkins Server의 방화벽이 열려있어야 가능한 방법이다.
+
+<img src="img/concept2.png">
 
 <br/>
 
