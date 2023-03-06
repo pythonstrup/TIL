@@ -40,7 +40,7 @@
 
 ## Jenkins의 구조
 
-- 젠킨스는 3가지 요소로 구성된다.
+- 젠킨스는 2가지 요소로 구성된다.
   1. Jenkins Server (과거 Master Node)
   2. Agent Nodes/Clouds(과거 Jenkins Slave)
 
