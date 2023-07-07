@@ -412,6 +412,7 @@ xpack.security.enabled: false
 
 ## 참고자료
 
+- 엘라스틱서치 실무 가이드: 한글 검색 시스템 구축부터 대용량 클러스터 운영까지
 - [설정: 공식문서(한글버전)](https://esbook.kimjmin.net/02-install/2.3-elasticsearch/2.3.2-elasticsearch.yml)
 - [Configuration](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html)
 
@@ -420,8 +421,6 @@ xpack.security.enabled: false
 
 - [enable security 설정](https://gihyun.com/138)
 - [ssl 설정](https://discuss.elastic.co/t/invalid-configuration-for-xpack-security-transport-ssl-xpack-security-transport-ssl-enabled/302761)
-
-### good
 
 - [8.x 버전에서 disabled가 되지 않는 문제](https://discuss.elastic.co/t/cannot-disable-security-in-8-1/299857)
 - ["Native controller process has stopped - no new native processes can be started"](https://stackoverflow.com/questions/60182669/elastic-search-error-native-controller-process-has-stopped-no-new-native-pro)

@@ -160,6 +160,9 @@ GET movie_kibana_execute/_search
 
 ## 참고자료
 
+- 엘라스틱서치 실무 가이드: 한글 검색 시스템 구축부터 대용량 클러스터 운영까지
 - [통합 로그 확인하기](https://jydlove.tistory.com/41)
 - [re2.node error](https://github.com/elastic/kibana/issues/83012)
 - [re2.node error](https://www.joyk.com/dig/detail/1671626289794362)
+- [공식문서: Size Your Shards](https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html)
+- [Elasticsearch Monitoring Metrics](https://www.elastic.co/guide/en/kibana/current/elasticsearch-metrics.html)
