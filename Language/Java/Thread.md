@@ -141,11 +141,73 @@ public interface Future<V> {
 
 ## Executor & Executors & ExecutorService
 
-### Executor
+- 객체 간의 관계
+
+<img src="./img/thread2.jpeg">
 
 ### Executor
+
+- 애플리케이션에서 병렬 처리를 할 때마다 쓰레드를 생성하는 것은 굉장히 비효율적이다.
+- 쓰레드를 미리 생성해 쓰레드 풀에서 가지고 있다가 대여해주는 식으로 구현한다면 쓰레드 생성 비용을 아낄 수 있다.
+- `Executor`는 쓰레드 풀의 구현을 위한 인터페이스다.
+- 인터페이스 분리 원칙에 맞게 등록된 작업을 실행하는 책임만 지니고 있다.
+
+```java
+public interface Executor {
+
+  /**
+   * Executes the given command at some time in the future.  The command
+   * may execute in a new thread, in a pooled thread, or in the calling
+   * thread, at the discretion of the {@code Executor} implementation.
+   *
+   * @param command the runnable task
+   * @throws RejectedExecutionException if this task cannot be
+   * accepted for execution
+   * @throws NullPointerException if command is null
+   */
+  void execute(Runnable command);
+}
+```
+
+- 만약 `Executor`를 상속받아 실행한다고 했을 때, 새로운 스레드를 생성하지 않고 아래와 같이 동작을 할당하면 메인 스레드에서 처리해버린다.
+
+```java
+class MyExecutor implements Executor {
+  @Override
+  public void execute(Runnable command) {
+    command.run();
+  }
+}
+
+public class Main {
+
+  public static void main(String[] args) {
+    Runnable runnable = () -> System.out.println("thread run");
+    
+    Executor executor = new MyExecutor();
+    executor.excute(runnable);
+  }
+} 
+```
+
+- 따라서 메인 쓰레드가 아닌 다른 쓰레드를 이용해 동작을 실행시키려면 새로운 쓰레드를 만들어 동작하도록 변경해줘야 한다.
+
+```java
+class MyExecutor implements Executor {
+  @Override
+  public void execute(Runnable command) {
+    new Thread(command).run();
+  }
+}
+```
+
+- <u>그렇다면 여기서 궁금증! 만약 Spring에서 `ThreadPoolTaskExecutor`을 사용해 스레드 풀을 만들고 `Executor`를 주입받는다고 했을 때, 그냥 Executor.excute()를 실행하면 메인스레드에서 실행될까? 쓰레드 풀에서 쓰레드를 받아올까?</u>
 
 ### ExecutorService
+
+
+
+### Executors
 
 <br/>
 
@@ -161,3 +223,4 @@ public interface Future<V> {
 - [Interrupt Method](https://cornswrold.tistory.com/190)
 - [자바: Thread 클래스와 Runnable 인터페이스](https://www.daleseo.com/java-thread-runnable/)
 - [[Java] Callable, Future 및 Executors, Executor, ExecutorService, ScheduledExecutorService에 대한 이해 및 사용법](https://mangkyu.tistory.com/259) 
+- [Java Concurrency: Executor와 Callable/Future](https://javacan.tistory.com/entry/134)
