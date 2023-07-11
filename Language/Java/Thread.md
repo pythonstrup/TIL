@@ -42,6 +42,14 @@
 
 ## Thread와 Runnable
 
+```java
+@FunctionalInterface
+public interface Runnable {
+    
+    public abstract void run();
+}
+```
+
 - `Thread`를 상속해 스레드를 만들 수도 있지만 `Runnable` 인터페이스를 구현할 수도 있다.
 - 실행 방법이 약간 다르다. 
   - Thread 상속 객체의 경우, start() 메소드를 직접 호출할 수 있다.
@@ -154,17 +162,7 @@ public interface Future<V> {
 
 ```java
 public interface Executor {
-
-  /**
-   * Executes the given command at some time in the future.  The command
-   * may execute in a new thread, in a pooled thread, or in the calling
-   * thread, at the discretion of the {@code Executor} implementation.
-   *
-   * @param command the runnable task
-   * @throws RejectedExecutionException if this task cannot be
-   * accepted for execution
-   * @throws NullPointerException if command is null
-   */
+  
   void execute(Runnable command);
 }
 ```
@@ -205,9 +203,112 @@ class MyExecutor implements Executor {
 
 ### ExecutorService
 
+- `ExecutorService`는 `Executor`를 상속한 인터페이스로, `execute()` 메소드 외에도 비동기 작업을 지원, 스레드를 생성하고 생명주기를 관리하기 위한 메소드가 추가로 정의되어 있다.
+- 예를 들어, 기존 `Executor.execute()` 메소드는 결과값에 전혀 관심이 없었지만, `ExecutorService`는 Future 형태로 작업을 묶어 작업이 완료된 후의 결과값을 획득하는 메소드를 지원해준다.
+- 아래 그림과 같이 `ExecutorService`는 Thread Pool과 Blocking Queue로 구성되어 있다. Task들이 제출(Submit)되면 Queue에 입력되고 순차적으로 쓰레드에 할당된다. 만약 쓰레드 풀의 쓰레드가 전부 대여 중이라면 Task는 Queue 안에서 머물게 된다. 
 
+<img src="./img/thread3.jpeg">
+
+- Task가 Queue에서 대기하고 있다가 Thread1과 Thread2에서 순차적으로 처리되는 것을 확인할 수 있다.
+
+<img src="./img/thread4.gif">
+
+- ExecutorService에서 
+
+```java
+package java.util.concurrent;
+
+import java.util.Collection;
+import java.util.List;
+
+public interface ExecutorService extends Executor {
+
+  /**
+   * 생명주기 관리
+   */
+  void shutdown();
+    
+  List<Runnable> shutdownNow();
+  
+  boolean isShutdown();
+  
+  boolean isTerminated();
+  
+  boolean awaitTermination(long timeout, TimeUnit unit)
+      throws InterruptedException;
+  
+  /**
+   * 비동기 처리
+   */
+  <T> Future<T> submit(Callable<T> task);
+    
+  <T> Future<T> submit(Runnable task, T result);
+  
+  Future<?> submit(Runnable task);
+  
+  <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+      throws InterruptedException;
+  
+  <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
+      throws InterruptedException;
+  
+  <T> T invokeAny(Collection<? extends Callable<T>> tasks)
+      throws InterruptedException, ExecutionException;
+  
+  <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
+      throws InterruptedException, ExecutionException, TimeoutException;
+}
+
+```
+
+- 비동기 작업을 처리하기 위해 `ExecutorService`는 아래와 같은 메소드를 사용할 수 있다.
+  - `submit()`
+  - `invokeAll()`
+  - `invokeAny()`
+- 생명주기를 관리하기 위한 메소드는 다음과 같다.
+  - `shutdown()`
+  - `shutdownNow()`
+  - `isShutdown()`
+  - `isTerminated()`
+  - `awaitTermination()`
+
+- `submit()` 메소드로 `Future`를 생성하고 비동기 작업을 처리하는 실행하는 예시이다.
+- 아래와 같이 `submit()` 안에 `Callable` 구현체가 아닌 람다식을 넣어 처리할 수도 있다.
+
+```java
+public class FileService {
+  public List<File> uploadFile(List<MultipartFile> multipartFiles) {
+    ExecutorService executorService = Executor.newFixedThreadPool(20);
+    List<Future<File>> futureList = multipartFiles.stream()
+            .map(file -> executorService.submit(() -> save(file)));
+
+    List<File> uploadFiles = new ArrayList<>();
+    for (Future<File> future : futureList) {
+      try {
+        File file = future.get();
+        uploadFiles.add(file);
+      } catch (ExecutionException e) {
+        e.printStackTrace();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+    
+    // 해당 executorService를 다른 곳에서 사용할 것이 아니라면 shutdown 메소드로 종료해줘야 한다.
+    // 그렇지 않으면 해당 프로세스가 끝나지 않고 계속해서 다음 작업을 기다리게 된다.
+    executorService.shutdown();
+    return uploadFiles;
+  }
+  
+  private File save(MultipartFile file) {
+    ...
+  }
+}
+```
 
 ### Executors
+
+
 
 <br/>
 
@@ -224,3 +325,4 @@ class MyExecutor implements Executor {
 - [자바: Thread 클래스와 Runnable 인터페이스](https://www.daleseo.com/java-thread-runnable/)
 - [[Java] Callable, Future 및 Executors, Executor, ExecutorService, ScheduledExecutorService에 대한 이해 및 사용법](https://mangkyu.tistory.com/259) 
 - [Java Concurrency: Executor와 Callable/Future](https://javacan.tistory.com/entry/134)
+- [[JAVA8 병렬프로그래밍] Executors 클래스, ExecutorService 인터페이스](https://devfunny.tistory.com/807)
