@@ -22,7 +22,7 @@
 - Java에서는 기본적으로 Thread를 상속하고 구현한 객체를 `new`로 할당할 수 있다.
 - run 메소드를 오버라이드해 구현해야한다.
 
-<img src="./img/thread1.png" />
+<img src="imghread1.png" />
 
 ### 기본 메소드
 
@@ -151,7 +151,7 @@ public interface Future<V> {
 
 - 객체 간의 관계
 
-<img src="./img/thread2.jpeg">
+<img src="imghread2.jpeg">
 
 ### Executor
 
@@ -207,11 +207,11 @@ class MyExecutor implements Executor {
 - 예를 들어, 기존 `Executor.execute()` 메소드는 결과값에 전혀 관심이 없었지만, `ExecutorService`는 Future 형태로 작업을 묶어 작업이 완료된 후의 결과값을 획득하는 메소드를 지원해준다.
 - 아래 그림과 같이 `ExecutorService`는 Thread Pool과 Blocking Queue로 구성되어 있다. Task들이 제출(Submit)되면 Queue에 입력되고 순차적으로 쓰레드에 할당된다. 만약 쓰레드 풀의 쓰레드가 전부 대여 중이라면 Task는 Queue 안에서 머물게 된다. 
 
-<img src="./img/thread3.jpeg">
+<img src="imghread3.jpeg">
 
 - Task가 Queue에서 대기하고 있다가 Thread1과 Thread2에서 순차적으로 처리되는 것을 확인할 수 있다.
 
-<img src="./img/thread4.gif">
+<img src="imghread4.gif">
 
 - ExecutorService에서 
 
