@@ -67,7 +67,25 @@
 
 ## 인덱스와 잠금
 
-- 
+- InnoDB의 잠금과 인덱스는 상당히 중요한 연관 관계가 있다.
+- InnoDB의 잠금은 레코드를 잠그는 것이 아니라 인덱스를 잠그는 방식으로 처리된다. 즉, 변경해야할 레코드를 찾기 위해 검색한 인덱스의 레코드를 모두 락을 걸어야 한다.
+- 예시) my_table은 nickname에 index가 설정되어 있다. 아래 쿼리를 실행하면 총 75건이 집계된다고 가정해보자. 
+
+```sql
+SELECT COUNT(*) FROM my_table WHERE nickname='park' ;
+```
+
+- 아래의 쿼리를 실행하면 1건이 집계된다고 가정한다. 
+
+```sql
+SELECT COUNT(*) FROM my_table WHERE nickname='park' AND age=26;
+```
+
+- 그렇다면 아래의 업데이트 쿼리를 실행할 때 몇 개의 레코드가 LOCK 상태가 될까? nickname이 'park'인 75건의 레코드가 잠금 상태가 된다.
+
+```sql
+UPDATE my_table SET agree_yn='Y' WHERE nickname='park' AND age=26;
+```
 
 <br/>
 
