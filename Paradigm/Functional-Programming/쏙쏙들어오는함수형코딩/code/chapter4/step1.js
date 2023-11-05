@@ -1,5 +1,5 @@
-var shopping_cart = []; // 장바구니 제품 전역 변수
-var shopping_cart_total = 0; // 금액 합계 전역 변수
+const shopping_cart = []; // 장바구니 제품 전역 변수
+const shopping_cart_total = 0; // 금액 합계 전역 변수
 
 function add_item_to_cart(name, price) {
   shopping_cart.push({
@@ -12,8 +12,8 @@ function add_item_to_cart(name, price) {
 
 function calc_cart_total() {
   shopping_cart_total = 0;
-  for (var i = 0; i < shopping_cart.length; i++) {
-    var item = shopping_cart[i];
+  for (let i = 0; i < shopping_cart.length; i++) {
+    const item = shopping_cart[i];
     shopping_cart_total += item.price; // 모든 제품값 더하기
   }
   set_cart_total_dom(); // 금액 합계를 반영하기 위한 DOM 업데이트
@@ -22,10 +22,10 @@ function calc_cart_total() {
 }
 
 function update_shopping_icons() {
-  var buy_buttons = get_but_buttons_dom(); // 페이지에 렌더링된 모든 구매 버튼을 가져와 반복문을 돌린다.
-  for (var i = 0; i < buy_buttons.length; i++) {
-    var button = buy_buttons[i];
-    var item = button.item;
+  const buy_buttons = get_but_buttons_dom(); // 페이지에 렌더링된 모든 구매 버튼을 가져와 반복문을 돌린다.
+  for (let i = 0; i < buy_buttons.length; i++) {
+    const button = buy_buttons[i];
+    const item = button.item;
     if (item.price + shopping_cart_total >= 20) { // 무료 배송이 가능한지 확인하고 결정에 따라 무료 배송 아이콘을 보여주거나 보여주지 않음
       button.show_free_shipping_icon();
     } else {
