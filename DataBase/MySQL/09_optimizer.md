@@ -301,3 +301,91 @@ mysql> EXPLAIN
 +----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+---------------------------------+
 2 rows in set, 1 warning (0.00 sec)
 ```
+
+## DISTINCT 처리
+
+- MIN, MAX, COUNT와 같은 집합와 함께 사용되는 경우와 집합 함수가 없는 경우 2가지로 구분해서 볼 수 있다.
+
+### SELECT DISTINCT
+
+- 집합 함수 없이 단순히 `SELECT`만을 할 때는 `GROUP BY`와 동일한 방식으로 처리된다.
+- MySQL 8.0 버전부터는 `GROUP BY`를 수행하는 쿼리에 `ORDER BY`가 없으면 정렬을 사용하지 않는다.
+- 따라서 아래의 두 쿼리는 내부적으로 같은 작업을 수행한다.
+
+```sql
+SELECT DISTINCT emp_no FROM salaries;
+SELECT emp_no FROM salaries GROUP BY emp_no;
+```
+
+- 하나 주의할 점이 있는데, DISTINCT는 SELECT하는 레코드(튜플)을 유니크하게 `SELECT`하는 것이지, 특정 칼럼만 유니크하게 조회하는 것이 아니다.
+- 그런데 아래와 같이 DISTINCT를 함수처럼 사용하는 경우도 있다.
+
+```sql
+SELECT DISTINCT(first_name), last_name FROM employees;
+```
+
+- 문제 없이 실행되는 것 같아 보이지만, MySQL 서버는 DISTINCT 뒤의 괄호를 그냥 의미 없이 사용된 괄호로 해석하고 제거해버린다. DISTINCT는 함수가 아니기 때문에 그 뒤의 괄호는 의미가 없는 것이다.
+- 따라서 SELECT 절에 사용된 DISTINCT 키워드는 조회되는 모든 칼럼에 영향을 미친다.
+
+### 집합 함수와 함께 사용된 DISTINCT
+
+- 집합 함수를 사용하는 경우 일반적으로 SELECT DISTINCT와는 다르게 해석된다.
+- 집합 함수 내에서 사용된 DISTINCT는 그 집합 함수의 인자로 전달된 칼럼값이 유니크한 것들을 가져온다.
+
+```sql
+mysql> EXPLAIN 
+    SELECT COUNT(DISTINCT s.salary) 
+    FROM employees e, salaries s 
+    WHERE e.emp_no = s.emp_no 
+      AND e.emp_no BETWEEN 100001 AND 100100;
++----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
+| id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref                | rows | filtered | Extra                    |
++----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
+|  1 | SIMPLE      | e     | NULL       | range | PRIMARY       | PRIMARY | 4       | NULL               |  100 |   100.00 | Using where; Using index |
+|  1 | SIMPLE      | s     | NULL       | ref   | PRIMARY       | PRIMARY | 4       | employees.e.emp_no |    9 |   100.00 | NULL                     |
++----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
+2 rows in set, 1 warning (0.00 sec)
+```
+
+- 위 쿼리는 내부적으로 `COUNT(DISTINCT s.salary)`를 처리하기 위해 임시 테이블을 사용한다.
+- 하지만 실행 계획에는 임시 테이블을 사용한다는 메시지인 "Using temporary"가 보이지 않는다.
+
+## 내부 임시 테이블 활용
+
+- MySQL 엔진이 스토리지 엔진으로부터 받아온 레코드를 정렬하거나 그루핑할 때는 내부 임시 테이블(Internal temporary table)을 사용한다.
+- 내부 임시 테이블은 `CREATE TEMPORARY TABLE` 명령으로 만든 임시 테이블과는는 다르다.
+- 일반적인 임시 테이블은 처음에 메모리에 생성됐다가 테이블의 크기가 커지면 디스크로 옮겨진다. 어떤 경우에는 메모리를 거치지 않고 바로 디스크에 만들어지기도 한다.
+- 내부 임시 테이블은 내부적인 가공을 위해 MySQL 엔진이 직접 생성하며 다른 세션이나 다른 쿼리에서 볼 수 없으며 사용하는 것도 불가능하다. 또한 쿼리의 처리가 완료되면 자동으로 삭제된다는 점에서 사용자가 생성하는 임시 테이블과는 다르다.
+
+### 메모리 임시 테이블과 디스크 임시 테이블
+
+- 8.0 이전에는 임시 테이블이 메모리를 사용할 때는 MEMORY 스토리지 엔진을 디스크에 저장될 때는 MyISAM 스토리지 엔진을 사용했다.
+  - MEMORY 스토리지 엔진은 가변 길이 타입(VARBINARY, VARCHAR)을 지원하지 못하기 때문에 임시 테이블이 메모리에 만들어지면 가변 타입의 겨우 최대 길이 만큼 메모리를 할당했기 때문에 낭비가 심했다.
+  - 또한 MyISAM에서 디스크에 임시 테이블을 만들었을 땐 트랜잭션을 지원하지 못한다는 문제점을 가지고 있었다.
+- 8.0 버전부터는 메모리는 TempTable이라는 스토리지 엔진을 사용하고 디스크에 저장되는 임시 테이블은 InnoDB 스토리지 엔진을 사용하도록 개선했다.
+  - TempTable은 가변 길이 타입을 지원한다.
+- 8.0 버전에서도 `internal_tmp_storage_engine` 시스템 변수를 이용해 MEMORY와 TempTable 중에서 선택할 수 있다. (default = TempTable)
+- TempTable이 최대한 사용 가능한 메모리 공간의 크기는 `temptable_max_ram` 시스템 변수로 제어할 수 있다. 
+- 기본값은 1GB인데 1GB보다 커지면 디스크에 기록한다.
+  - MMAP 파일로 디스크에 기록
+  - InnoDB 테이블로 기록
+- 처음부터 디스크 테이블로 생성되는 경우도 있다. 이 경우 internal_tmp_disk_storage_engine 시스템 변수에 설정된 스토리지 엔진이 사용된다. (default = InnoDB)
+
+### 임시 테이블이 필요한 쿼리
+
+- 대표적인 케이스들
+  - ORDER BY와 GROUP BY에 명시된 칼럼이 다른 쿼리
+  - ORDER BY나 GROUP BY에 명시된 칼럼이 조인의 순서상 첫 번째 테이블이 아닌 쿼리
+  - DISTINCT와 ORDER BY가 동시에 쿼리에 존재하는 경우 또는 DISTINCT가 인덱스로 처리되지 못하는 쿼리
+  - UNION이나 UNION DISTINCT가 사용된 쿼리(select_type 칼럼이 UNION RESULT인 경우)
+  - 쿼리의 실행 계획에서 select_type이 DERIVED인 쿼리
+- Extra 칼럼에 "Using temporary" 메시지가 표시되는지 확인하면 임시테이블이 사용되는지 확인할 수 있다. (사용하더라도 표시되지 않는 경우가 있으니 주의하자. - 3번째 케이스)
+
+### 임시 테이블이 디스크에 생성되는 경우
+
+- 아래의 조건을 만족하면 메모리 임시 테이블을 사용할 수 없게 된다.
+  - UNION이나 UNION ALL에서 SELECT되는 칼럼 중에서 길이가 512바이트 이상의 크기의 칼럼이 있는 경우
+  - GROUP BY나 DISTINCT 칼럼에서 512바이트 이상인 크기의 칼럼이 있는 경우
+  - (MEMORY 스토리지 엔진을 사용할 경우) 메모리 임시 테이블의 크기가 tmp_table_size 또는 max_heap_table_size 시스템 변수보다 큰 경우
+  - (TempTable 스토리지 엔진을 사용할 경우) 메모리 임시 테이블의 크기가 temptable_max_ram 시스템 변수 값보다 큰 경우
+
