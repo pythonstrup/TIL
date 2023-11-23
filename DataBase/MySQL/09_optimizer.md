@@ -389,3 +389,163 @@ mysql> EXPLAIN
   - (MEMORY 스토리지 엔진을 사용할 경우) 메모리 임시 테이블의 크기가 tmp_table_size 또는 max_heap_table_size 시스템 변수보다 큰 경우
   - (TempTable 스토리지 엔진을 사용할 경우) 메모리 임시 테이블의 크기가 temptable_max_ram 시스템 변수 값보다 큰 경우
 
+# 고급 최적화
+
+- MySQL 서버의 옵티마이저가 실행 계획을 수립할 때 통계 정보와 옵티마이저 옵션을 결합해서 최적의 실행 계획을 수립하게 된다.
+- 옵티마이저 옵션은 조인 관련되 옵티마이저 옵션과 옵티마이저 스위치로 구분할 수 있다.
+
+## 옵티마이저 스위치 옵션
+
+- 각 스위치 옵션은 default, on, off 중에서 하나를 고를 수 있다.
+
+<table>
+    <thead>
+        <tr>
+            <th>옵티마이저 스위치 이름</th>
+            <th>기본값</th>
+            <th>설명</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>batched_key_access</td>
+            <td>off</td>
+            <td>BKA 조인 알고리즘 결정</td>
+        </tr>
+        <tr>
+            <td>block_nested_loop</td>
+            <td>on</td>
+            <td>Block Nested Loop 조인 알고리즘 설정</td>
+        </tr>
+        <tr>
+            <td>engine_condition_pushdown</td>
+            <td>on</td>
+            <td>Engin Condition Pushdown 기능 설정</td>
+        </tr>
+        <tr>
+            <td>index_condition_pushdown</td>
+            <td>on</td>
+            <td>Index Condition Pushdown 기능 설정</td>
+        </tr>
+        <tr>
+            <td>use_index_extensions</td>
+            <td>on</td>
+            <td>Index Extension 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>index_merge</td>
+            <td>on</td>
+            <td>Index Merge 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>index_merge_intersection</td>
+            <td>on</td>
+            <td>Index Merge Intersection 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>index_merge_sort_union</td>
+            <td>on</td>
+            <td>Index Merge Union 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>mrr</td>
+            <td>on</td>
+            <td>MRR 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>mrr_cost_based</td>
+            <td>on</td>
+            <td>비용 기반의 MRR 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>semijoin</td>
+            <td>on</td>
+            <td>세미 조인 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>firstmatch</td>
+            <td>on</td>
+            <td>FirshMatch 세미 조인 최적화</td>
+        </tr>
+        <tr>
+            <td>loosescan</td>
+            <td>on</td>
+            <td>LooseScan 세미 조인 최적화 설정</td>
+        </tr>
+        <tr>
+            <td>materialization</td>
+            <td>on</td>
+            <td>Materialization 최적화 설정(Materialization 세미 조인 최적화 포함)</td>
+        </tr>
+        <tr>
+            <td>subquery_materialization_cost_based</td>
+            <td>on</td>
+            <td>비용 기반의 Materialization 최적화 설정</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+### MRR과 배치 키 엑세스(mmr & batched_key_access)
+
+- MRR(Multi-Range Read) 또는 DS-MRR(Disk Sweep Multi-Range Read)는 드라이빙 테이블과 드리븐 테이블을 조회 최적화를 위해 사용한다.
+- MySQL 서버는 조인 대상 테이블 중 하나로부터 레코드를 읽어서 조인 버퍼에 버퍼링한다. 드라이빙 테이블의 레코드를 읽어서 드리븐 테이블과의 조인을 즉시 실행하지 않고 조인 대상을 버퍼링하는 것이다.
+- 조인 버퍼에 레코드가 가득 차면 MySQL 엔진은 버퍼링된 레코드를 스토리지 엔진으로 한 번에 요청한다. 이를 통해 스토리지 엔진은 읽어야할 레코드들을 데이터 페이지에 정렬된 순서로 접근해서 디스크의 데이터 페이지 읽기를 최소화할 수 있는 것이다.
+- MMR을 응용해서 실행되는 조인 방식인 BKA 조인 최적화 방식도 있는데 기본값이 off이다. 그 이유는 BKA 조인을 사용하면 부가적인 정렬 작업이 필요해지기 때문에 오히려 성능이 안 좋아질 수 있다는 단점이 존재하기 때문이다.
+
+### 블록 네스티드 루프 조인(block_nested_loop)
+
+**주의: MySQL 8.0.18 버전부터 해시 조인 알고리즘이 도입되었고, MySQL 8.0.20 버전부터는 블록 네스티드 조인은 더이상 사용되지 않고 해시 조인 알고리즘을 대체된다. 따라서 Extra 칼럼에 "Using Join Buffer(block nested loop)" 메시지가 표시되지 않을 수 있다.**
+
+- MySQL에서 사용되는 대부분의 조인이 네스티드 루프 조인이다. 조인의 연결 조건이 되는 칼럼에 모두 인덱스가 있는 경우 사용되는 조인 방식이다.
+- 마치 중첩된 반복 명령을 사용하는 것처럼 작동한다고 하여 네스티드 루프 조인이라고 부른다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT *
+    -> FROM employees e
+    -> INNER JOIN salaries s ON s.emp_no = e.emp_no
+    -> AND s.from_date <= NOW()
+    -> AND s.to_date >= NOW()
+    -> WHERE e.first_name = 'Amor';
++----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
+| id | select_type | table | partitions | type | possible_keys        | key          | key_len | ref                | rows | filtered | Extra       |
++----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
+|  1 | SIMPLE      | e     | NULL       | ref  | PRIMARY,ix_firstname | ix_firstname | 58      | const              |    1 |   100.00 | NULL        |
+|  1 | SIMPLE      | s     | NULL       | ref  | PRIMARY              | PRIMARY      | 4       | employees.e.emp_no |    9 |    11.11 | Using where |
++----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
+2 rows in set, 1 warning (0.00 sec)
+```
+
+- 네스티드 루프 조인과 블록 네스티드 루프 조인(Block Nested Loop Join)의 가장 큰 차이는 조인 버퍼가 사용되는지 여부와 조인에서 드라이빙 테이블과 드리븐 테이블이 어떤 순서로 조인되느냐이다.
+- 조인 알고리즘에서 Block이라는 단어가 사용되면 조인용으로 별도의 버퍼가 사용됐다는 것을 의미하는데, 조인 쿼리의 실행 계획에서 Extra 칼럼에 "Using Join buffer"라는 문구가 표시되면 그 실행 계획은 조인 버퍼를 사용한다는 것을 의미한다.
+- 조인은 드라이빙 테이블에서 일치하는 레코드의 건수만큼 드리븐 테이블을 검색하면서 처리된다. 드라이빙 테이블은 한 번에 쭉 읽지만, 드리븐 테이블은 여러 번 읽는다.
+- 어떤 방식으로든 드리븐 테이블의 풀 테이블 스캔이나 인덱스 풀 스캔을 피할 수 없다면 옵티마이저는 드라이빙 테이블에서 읽은 레코드를 메모리에 캐시한 후 드리븐 테이블과 이 메모리 캐시를 조인하는 형태로 처리한다. 이 때 사용되는 메모리의 캐시를 조인 버퍼(Join Buffer)라고 한다.
+- 조인 버퍼는 `join_buffer_size`라는 시스템 변수로 크리를 제한할 수 있으며 조인이 완료되면 조인 버퍼는 바로 해제된다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT *
+    -> FROM dept_emp de, employees e
+    -> WHERE de.from_date > '1995-01-01' AND e.emp_no < 109004;
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+| id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref  | rows   | filtered | Extra                                      |
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+|  1 | SIMPLE      | e     | NULL       | range | PRIMARY       | PRIMARY | 4       | NULL | 150070 |   100.00 | Using where                                |
+|  1 | SIMPLE      | de    | NULL       | ALL   | ix_fromdate   | NULL    | NULL    | NULL | 331143 |    50.00 | Using where; Using join buffer (hash join) |
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+2 rows in set, 1 warning (0.01 sec)
+```
+
+- (위 쿼리를 살펴보면 "Using Join Buffer(block nested loop)" 메시지가 출력되지 않고 "Using Join Buffer(hash join)"으로 출력되는 것을 확인할 수 있다.)
+- 위 쿼리는 아래의 과정을 거쳐 실행된다. (Extra 칼럼을 보면 Using join buffer 라는 문구를 볼 수 있음)
+  1. dept_emp 테이블의 ix_fromdate 인덱스를 이용해(from_date > '1995-01-01') 조건을 만족하는 레코드를 검색한다.
+  2. 조인에 필요한 나머지 칼럼을 모두 dept_emp 테이블로부터 읽어서 조인 버퍼에 저장한다.
+  3. employees 테이블의 프라이머리 키를 이용해 (emp_no < 109004) 조건을 만족하는 레코드를 검색한다.
+  4. 3번에서 검색된 결과(employees)에 2번의 캐시된 조인 버퍼의 레코드(dept_emp)를 결합해서 반환한다.
+
+<img src="img/optimizer3.png">
