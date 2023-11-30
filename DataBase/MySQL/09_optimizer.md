@@ -664,6 +664,203 @@ mysql> EXPLAIN SELECT * FROM employees WHERE first_name='Matt' OR hire_date BETW
 - `first_name='Matt'` 절은 emp_no로 정렬되어 출력되지만 `hire_date BETWEEN '1987-03-01' AND '1987-03-31'` 조건은 <u>`ix_hiredate` index 순서대로 정렬되어 있기 때문에 emp_no 칼럼으로 정렬되지 않는다.</u>
 - 그래서 우선순위 큐 알고리즘을 사용해 레코드 중복제거를 실행하기 전에 각 집합을 emp_no로 정렬한 다음 중복 제거를 수행한다.
 
-### 세미 조인(semijoin)
+## 세미 조인(semijoin)
 
 - 다른 테이블과 실제 조인을 수행하지 않고 단지 다른 테이블에서 조건에 일치하는 레코드가 있는지 없는지만 체크하는 형태의 쿼리를 세미 조인이라고 한다.
+- MySQL 5.7 버전은 세미 조인 형태의 쿼리를 최적화하는 부분이 상당히 취약했다고 한다.
+- 세미조인이 켜져있을 땐 57건만 조회한다.
+- 
+```sql
+mysql> EXPLAIN SELECT * FROM employees e WHERE e.emp_no IN (SELECT de.emp_no FROM dept_emp de WHERE de.from_date='1995-01-01');
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+| id | select_type  | table       | partitions | type   | possible_keys                 | key         | key_len | ref                | rows | filtered | Extra       |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+|  1 | SIMPLE       | <subquery2> | NULL       | ALL    | NULL                          | NULL        | NULL    | NULL               | NULL |   100.00 | NULL        |
+|  1 | SIMPLE       | e           | NULL       | eq_ref | PRIMARY                       | PRIMARY     | 4       | <subquery2>.emp_no |    1 |   100.00 | NULL        |
+|  2 | MATERIALIZED | de          | NULL       | ref    | ix_fromdate,ix_empno_fromdate | ix_fromdate | 3       | const              |   57 |   100.00 | Using index |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+3 rows in set, 1 warning (0.00 sec)
+```
+
+- 반면 세미조인을 끄고 실행하면 무려 30만 건 이상 읽고 처리되는 것을 살펴볼 수 있다.
+
+```sql
+mysql> SET SESSION optimizer_switch='semijoin=off';
+Query OK, 0 rows affected (0.00 sec)
+    
+mysql> EXPLAIN SELECT * FROM employees e WHERE e.emp_no IN (SELECT de.emp_no FROM dept_emp de WHERE de.from_date='1995-01-01');
++----+-------------+-------+------------+------+-------------------------------+-------------+---------+-------+--------+----------+-------------+
+| id | select_type | table | partitions | type | possible_keys                 | key         | key_len | ref   | rows   | filtered | Extra       |
++----+-------------+-------+------------+------+-------------------------------+-------------+---------+-------+--------+----------+-------------+
+|  1 | PRIMARY     | e     | NULL       | ALL  | NULL                          | NULL        | NULL    | NULL  | 300141 |   100.00 | Using where |
+|  2 | SUBQUERY    | de    | NULL       | ref  | ix_fromdate,ix_empno_fromdate | ix_fromdate | 3       | const |     57 |   100.00 | Using index |
++----+-------------+-------+------------+------+-------------------------------+-------------+---------+-------+--------+----------+-------------+
+2 rows in set, 1 warning (0.00 sec)
+```
+
+- 세미 조인 형태의 쿼리와 안티 세미 조인 형태의 쿼리는 최적화 방법이 조금 차이가 있다.
+- 세미 조인 형태는 3가지 방법을 적용할 수 있다.
+  - 세미 조인 최적화
+  - IN-to-EXISTS 최적화
+  - MATERIALIZATION 최적화
+- 안티 세미 조인 형태는 2가지 방법이 있다.
+  - IN-to-EXISTS 최적화
+  - MATERIALIZATION 최적화
+- 최근 도입된 세미 조인 최적화는 아래와 같은 최적화 전략을 가지고 있다.
+  - Table Pull-out
+  - Duplicate Weed-out
+  - First Match
+  - Loose Scan
+  - Materialization
+
+### 테이블 풀-아웃 (Table Pull-out)
+
+- 세미 조인의 서브쿼리에 사용된 테이블을 아우터 쿼리로 끄집어낸 후 쿼리를 조인 쿼리로 재작성하는 형태의 최적화다.
+- 서브쿼리가 최적화가 도입되기 전 수동으로 쿼리를 튜닝하던 대표적인 방법이었다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT * FROM employees e
+    -> WHERE e.emp_no IN (SELECT de.emp_no FROM dept_emp de WHERE de.dept_no='d009');
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+| id | select_type | table | partitions | type   | possible_keys             | key     | key_len | ref                 | rows  | filtered | Extra       |
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+|  1 | SIMPLE      | de    | NULL       | ref    | PRIMARY,ix_empno_fromdate | PRIMARY | 16      | const               | 46012 |   100.00 | Using index |
+|  1 | SIMPLE      | e     | NULL       | eq_ref | PRIMARY                   | PRIMARY | 4       | employees.de.emp_no |     1 |   100.00 | NULL        |
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+2 rows in set, 1 warning (0.00 sec)
+```
+
+- 테이블 풀아웃 최적화는 별도의 실행 계획의 Extra 칼럼에 "Using table pullout"과 같은 문구가 출력되지 않는다. 최적화가 사용됐는지 확인하려면 해당 테이블들의 id 칼럼값이 같은지 다른지 비교해보는 것이 가장 간단하다.
+- 위의 예시에서는 id 칼럼 값이 모두 1로 표시되는 것으로 보아 테이블 풀아웃 최적화가 진행된 것을 알 수 있다.
+
+```sql
+mysql> SHOW WARNINGS;
+Level: Note
+Code: 1003
+Message:  /* select#1 */
+    select `employees`.`e`.`emp_no` AS `emp_no`,
+       `employees`.`e`.`birth_date` AS `birth_date`,
+       `employees`.`e`.`first_name` AS `first_name`,
+       `employees`.`e`.`last_name` AS `last_name`,
+       `employees`.`e`.`gender` AS `gender`,
+       `employees`.`e`.`hire_date` AS `hire_date` 
+    from `employees`.`dept_emp` `de` 
+        join `employees`.`employees` `e` 
+    where ((`employees`.`e`.`emp_no` = `employees`.`de`.`emp_no`) 
+               and (`employees`.`de`.`dept_no` = 'd009')) 
+1 row in set (0.00 sec)
+```
+
+- `SHOW WARNINGS` 명령어를 통해 쿼리가 어떤 식으로 재작성되었는지 확인할 수 있다. 해당 쿼리를 확읺해보면 IN(subquery) 형태는 사라지고 JOIN으로 쿼리가 재작성된 것을 확인할 수 있다.
+- 테이블 풀아웃의 특성을 정리하면 아래와 같다.
+  - 세미 조인 서브쿼리에서만 사용 가능하다.
+  - 서브쿼리 부분이 UNIQUE 인덱스나 프라이머리 키 룩업으로 결과가 1건인 경우에만 사용 가능하다.
+  - 적용된다 하더라도 기본 쿼리에서 가능했던 최적화 방법이 불가능한 것은 아니므로 MySQL에서는 가능하다면 테이블 풀아웃을 최대한 적용한다.
+  - 테이블 풀아웃 최적화는 서브쿼리의 테이블을 아우터 쿼리로 가져와서 조인으로 풀어쓰는 최적화를 수행하는데 만약 서브쿼리의 모든 테이블이 아우터 쿼리로 끄집어낼 수 있다면 서브쿼리 자체는 없어진다.
+  - MySQL에서는 "최대한 서브쿼리를 조인으로 풀어서 사용해라"라는 튜닝 가이드가 많은데 테이블 풀아웃 최적화는 사실 이 가이드를 그대로 실행하는 것이다.
+
+### 퍼스트 매치 (firstmatch)
+
+- 퍼스트 매치 전략은 IN(subquery) 형태의 세미 조인을 EXIST(subquery) 형태로 튜닝한 것과 비슷한 방법으로 실행된다.
+- 실행 계획을 보면 Extra 칼럼에 `FirstMatch(e)`라는 문구가 표시된다.
+
+```sql
+mysql> EXPLAIN 
+    SELECT * FROM employees e 
+    WHERE e.emp_no IN 
+          (SELECT de.emp_no FROM dept_emp de WHERE de.dept_no='d009');
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+| id | select_type | table | partitions | type   | possible_keys             | key     | key_len | ref                 | rows  | filtered | Extra       |
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+|  1 | SIMPLE      | de    | NULL       | ref    | PRIMARY,ix_empno_fromdate | PRIMARY | 16      | const               | 46012 |   100.00 | Using index |
+|  1 | SIMPLE      | e     | NULL       | eq_ref | PRIMARY                   | PRIMARY | 4       | employees.de.emp_no |     1 |   100.00 | NULL        |
++----+-------------+-------+------------+--------+---------------------------+---------+---------+---------------------+-------+----------+-------------+
+2 rows in set, 1 warning (0.00 sec)
+
+```
+
+- 퍼스트매치는 서브쿼리가 아니라 조인으로 풀어 실행하면서 일치하는 첫 번째 레코드만 검색하는 최적화를 실행한 것이다.
+- 예시에서는 titles 테이블에 일치하는 레코드 1건만 찾으면 더이상 titles 테이블 검색을 하지 않는다는 것을 의미한다.
+
+<img src="img/optimizer4.png">
+
+- 퍼스트 매치 최적화의 특성은 아래와 같다.
+  - 서브쿼리에서 하나의 레코드만 검색되면 더이상의 검색을 멈추는 단축 실행 경로(Short-cut path)이기 때문에 퍼스트매치 최적화에서 서브쿼리는 그 서브쿼리가 참조하는 모든 아우터 테이블이 먼저 조회된 이후에 실행된다.
+  - 실행 계획의 Extra 칼럼에서 `FirstMatch(table-N)` 문구가 표시된다.
+  - 상관 서브쿼리(Correlated subquery)에서도 사용될 수 있다.
+  - GROUP BY나 집합 함수가 사용된 서브쿼리의 최적화에는 사용될 수 없다.
+
+### 루스 스캔(loosescan)
+
+- `GROUP BY` 최적화에서 살펴본 "Using index for group-by"의 루스 인덱스 스캔(Loose Index Scan)과 비슷한 읽기 방식을 사용한다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT * FROM departments d 
+    -> WHERE d.dept_no IN(SELECT de.dept_no FROM dept_emp de);
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+| id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref  | rows   | filtered | Extra                                      |
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+|  1 | SIMPLE      | de    | NULL       | index | PRIMARY       | PRIMARY | 20      | NULL | 331143 |     0.00 | Using index; LooseScan                     |
+|  1 | SIMPLE      | d     | NULL       | ALL   | PRIMARY       | NULL    | NULL    | NULL |      9 |    11.11 | Using where; Using join buffer (hash join) |
++----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+2 rows in set, 1 warning (0.00 sec)
+```
+
+- departments 테이블의 레코드 건수는 9건밖에 되지 않지만 dept_emp 테이블의 레코드 건수는 무려 33만 건 가까이 저장되어 있다.
+- dept_emp 테이블에는 (dept_no, emp_no) 조합의 프라이머리 키 인덱스가 만들어져 있다.dept_no만으로 그루핑해보면 결국 9건 밖에 없다는 것을 알 수 있다.
+- dept_emp 테이블의 프라이머리 키를 루스 인덱스 스캔으로 유니크한 dept_no만 읽으면 중복된 레코드를 제거하면서 아주 효율적으로 서브쿼리 부분을 실행할 수 있다.
+
+<img src="img/optimizer5.png" />
+
+- 서브쿼리에 사용된 dept_emp 테이블의 프라이머리 키를 dept_no 부분에서 유니크하게 한 건씩만 읽고 있다는 것을 보여준다.
+
+### 구체화 (Materialization)
+
+- 세미 조인에 사용된 서브쿼리를 통째로 구체화해서 쿼리를 최적화한다는 의미다.
+- 쉽게 표현하면 내부 임시 테이블을 생성한다는 것을 의미한다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT *
+    -> FROM employees e
+    -> WHERE e.emp_no IN
+    -> (SELECT de.emp_no FROM dept_emp de
+    -> WHERE de.from_date='1995-01-01');
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+| id | select_type  | table       | partitions | type   | possible_keys                 | key         | key_len | ref                | rows | filtered | Extra       |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+|  1 | SIMPLE       | <subquery2> | NULL       | ALL    | NULL                          | NULL        | NULL    | NULL               | NULL |   100.00 | NULL        |
+|  1 | SIMPLE       | e           | NULL       | eq_ref | PRIMARY                       | PRIMARY     | 4       | <subquery2>.emp_no |    1 |   100.00 | NULL        |
+|  2 | MATERIALIZED | de          | NULL       | ref    | ix_fromdate,ix_empno_fromdate | ix_fromdate | 3       | const              |   57 |   100.00 | Using index |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+3 rows in set, 1 warning (0.00 sec)
+```
+
+- 해당 쿼리에서 사용하는 테이블은 2개인데 실행 계획은 3개 라인이 출력되었다. 실행 계획 어디선가 임시 테이블이 생성됐다는 것을 짐작할 수 있다.
+- dept_emp 테이블을 읽는 서브쿼리가 먼저 실행되어 그 결과로 임시 테이블(<subquery2>)가 만들어졌다. 최종적으로 서브쿼리가 구체화된 임시 테이블 (<subquery2>)과 employees 테이블을 조인해서 결과를 반환한다.
+- Materialization는 다른 서브쿼리 최적화와 다르게 서브쿼리 내에 GROUP BY 절이 있어도 이 최적화 전략을 사용할 수 있다.
+
+```sql
+mysql> EXPLAIN
+    -> SELECT *
+    -> FROM employees e
+    -> WHERE e.emp_no IN
+    -> (SELECT de.emp_no FROM dept_emp de
+    -> WHERE de.from_date='1995-01-01'
+    -> GROUP BY de.dept_no);
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+| id | select_type  | table       | partitions | type   | possible_keys                 | key         | key_len | ref                | rows | filtered | Extra       |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+|  1 | SIMPLE       | <subquery2> | NULL       | ALL    | NULL                          | NULL        | NULL    | NULL               | NULL |   100.00 | NULL        |
+|  1 | SIMPLE       | e           | NULL       | eq_ref | PRIMARY                       | PRIMARY     | 4       | <subquery2>.emp_no |    1 |   100.00 | NULL        |
+|  2 | MATERIALIZED | de          | NULL       | ref    | ix_fromdate,ix_empno_fromdate | ix_fromdate | 3       | const              |   57 |   100.00 | Using index |
++----+--------------+-------------+------------+--------+-------------------------------+-------------+---------+--------------------+------+----------+-------------+
+3 rows in set, 1 warning (0.00 sec)
+```
+
+- Materialization의 특성은 아래와 같다.
+  - IN(subquery)에서 서브쿼리는 상관 서브쿼리(Correlated subquery)가 아니어야 한다.
+  - 서브쿼리는 GROUP BY나 집합 함수들이 사용돼도 구체화를 사용할 수 있다.
+  - 구체화가 사용된 경우에는 내부 임시 테이블이 사용된다.
