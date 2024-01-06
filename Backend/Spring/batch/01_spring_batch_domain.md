@@ -104,6 +104,73 @@ Caused by: org.springframework.batch.core.repository.JobInstanceAlreadyCompleteE
 
 ## Step
 
+- Batch Job을 구성하는 독립적인 하나의 단계다. 실제 배치 처리를 정의하고 컨트롤하는 데 필요한 모든 정보를 가지고 있는 도메인 객체다.
+- 단순한 단일 Task와 입력, 처리 및 출력과 관련된 복잡한 비즈니스 로직을 포함하는 모든 설정을 담고 있다.
+- 배치 작업을 어떻게 구성하고 실행할 것인지 Job의 세부 작업을 Task 기반으로 설정하고 명세해놓은 객체다.
+- Job은 하나 이상의 Step으로 구성된다.
+
+### 구현체
+
+- `TaskletStep`
+  - 가장 기본이 되는 클래스
+  - Tasklet 타입의 구현체들을 제어
+- `PartitionStep`
+  - 멀티 스레드 방식으로 Step을 여러 개로 분리해서 실행
+- `JobStep`
+  - Step 내에서 Job을 실행하도록 함
+- `FlowStep`
+  - Step 내에서 Flow를 실행하도록 함
+
+<img src="img/step/step1.png">
+
+<img src="img/step/step2.png">
+
+### API 설정에 따른 각 Step의 생성
+
+- Tasklet: 직접 생성한 Tasklet 실행
+
+```java
+public Step taskletStep() {
+  return this.stepBuilderFactory.get("step")
+        .tasklet(myTasklet())
+        .build();
+}
+```
+
+- TaskletStep: ChunkOrientedTasklet을 실행
+
+```java
+public Step taskletStep() {
+  return this.stepBuilderFactory.get("step")
+        .<Member, Member>chunk(100)
+        .reader(reader())
+        .writer(writer())
+        .build();
+}
+```
+
+- JobStep: Step에서 Job을 실행
+
+```java
+public Step jobStep() {
+  return this.stepBuilderFactory.get("step")
+        .job(job())
+        .launcher(jobLauncher)
+        .parametersExtractor(JobParametersExtractor())
+        .build();
+}
+```
+
+- FlowStep: Step에서 Flow를 실행
+
+```java
+public Step flowStep() {
+  return this.stepBuilderFactory.get("step")
+        .flow(myFlow())
+        .build();
+}
+```
+
 <br/>
 
 ## StepExecution
