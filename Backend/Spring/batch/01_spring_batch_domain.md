@@ -91,7 +91,7 @@ Caused by: org.springframework.batch.core.repository.JobInstanceAlreadyCompleteE
 
 ### 테이블 매핑
 
-- BATCH_JOB_EXECUTION 테이블과 매핑
+- `BATCH_JOB_EXECUTION` 테이블과 매핑
 - JobInstance와 JobExecution은 1:M 관계로 JobInstance에 대한 성공/실패 내역을 가지고 있다.
 
 ### 플로우
@@ -175,9 +175,63 @@ public Step flowStep() {
 
 ## StepExecution
 
+- Step에 대한 한 번의 시도를 의미하는 객체. Step 실행 중에 발생한 정보들을 저장하고 있다.
+  - 시작시간, 종료시간, 상태(시작, 완료, 실패), commit count, rollback count 등의 속성
+- Step이 매번 시도될 때마다 생성되며 각 Step 별로 생성
+- Job이 재시작 하더라도 이미 성공적으로 완료된 Step은 재실행되지 않고 실패한 Step만 실행
+- 이전 단계 Step이 실패해서 현재 Step을 실행하지 않았다면 StepExecution을 생성하지 않는다. Stetp이 실제로 시작됐을 때만 StepExecution을 생성한다.
+
+### JobExecution과의 관계
+
+- Step의 StepExecution이 모두 정상적으로 완료되어야 JobExecution이 완료된다.
+- Step의 StepExecution 중 하나라도 실패하면 JobExecution은 실패한다.
+
+### 테이블 매핑
+
+- `BATCH_STEP_EXECUTION` 테이블과 매핑
+- JobExecution과 StepExecution은 1:M 관계
+- 하나의 Job을 여러 개의 Step으로 구성했을 경우 각 StepExecution은 하나의 JobExecution을 부모로 가진다.
+
+### 예시
+
+- 일별정산 Job은 매일 실행된다. Job이 실행될 때마다 JobExecution은 매번 생성된다.
+- Job은 2개의 Step으로 구성되어 있다. 2개의 Step이 전부 성공해야 `COMPLETE` 상태가 된다. 하나라도 실패하면 `FAILED` 상태가 된다.
+- `BATCH_STEP_EXECUTION` 테이블은 (2개의 STEP) * (2회 실행) = 4개의 로우가 저장되었고, `BATCH_JOB_EXECUTION`에는 JOB이 실행된만큼 2번의 로우가 저장되었다.
+
+<img src="img/step/stepExecution1.png">
+
+- StepExecution은 Entity라는 객체를 상속받아 만들어진다.
+
+<img src="img/step/stepExecution2.png">
+
+- 1월 1일 JobParameter로 생성된 JobInstance A
+  - 하위에 JobExecution(JobInstance에 대한 1번의 시도)를 생성한다.
+  - 각각의 스텝마다 StepExecution이 생성되기 때문에 2개의 객체가 생성된다.
+  - 모든 StepExecution이 `COMPLETE`로 끝났기 때문에 JobExecution도 `COMPLETE` 상태가 되었다.
+- 1월 2일 JobParameter로 생성된 JobInstance B
+  - 동일하게 JobExecution이 생성된다. 하지만 하위의 StepExecution 중 하나가 `FAILED` 상태가 되어버려 JobExecution 또한 `FAILED` 상태가 됐다.
+  - JobExecution이 실패로 끝나 Job이 한 번 더 실행됐다. 이 때 StepExecution이 모두 성공해 JobExecution 또한 `COMPLETE` 됐다.
+
+<img src="img/step/stepExecution3.png">
+
 <br/>
 
 ## StepContribution
+
+- Chunk 프로세스의 변경 사항을 버퍼링한 후 StepExecution 상태를 업데이트하는 객체.
+- Chunk Commit 직전에 StepExecution의 apply 메소드를 호출하여 상태를 업데이트한다.
+- ExitStatus의 기본 종료코드 외 사용자 정의 종료코드를 생성해서 적용할 수 있다.
+
+<img src="img/step/stepContribution1.png">
+
+1. 먼저 `TaskletStep`이 시작되고 `StepExecution`을 실행한다.
+2. `StepExecution`이 내부적으로 `StepContribution` 객체를 생성한다.
+3. `TaskletStep`이 Chunk 기반의 프로세스를 처리할 수 있는 전용 Tasklet 객체인 `ChunkOrientedTasklet`를 생성한다.
+4. Tasklet이 `ChunkOrientedTasklet`를 호출하면 내부적으로 청크 프로세스를 처리해주는 객체를 실행한다. 그리고 그 내용(count 등)은 `StepContribution`에 저장된다.
+   - 청크 기반 프로세스는 `ItemReader`, `ItemProcessor`, `ItemWriter`를 사용해 처리한다.
+5. 모든 작업이 완료되면 `StepContribution`에 저장된 값들을 `apply(contribution)` 메소드를 사용해 `StepExecution`에 적용시킨다.
+
+<img src="img/step/stepContribution2.png">
 
 <br/>
 
