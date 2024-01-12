@@ -237,6 +237,24 @@ public Step flowStep() {
 
 ## ExecutionContext
 
+- 프레임워크에서 유지 및 관리하는 키/값으로 된 컬렉션으로 `StepExecution` 또는 `JobExecution` 객체의 상태(state)를 저장하는 공유 객체
+- DB에 직렬화한 값으로 저장된다. `{key: value}`
+- 공유 범위
+  - Step 범위 - 각 `Step`의 `StepExecution`에 저장되며 Step 간 서로 공유가 안된다.
+  - Job 범위 - 각 `Job`의 `JobExecution`에 저장되며 `Job` 간 서로 공유가 안되며 해당 Job의 Step 간은 공유된다.
+- `Job` 재시작 시 이미 처리한 Row 데이터는 건너 뛰고 이후로 수행하도록 할 때 상태 정보를 활용한다. 
+
+### 구조
+
+- 유지, 관리에 필요한 키-값을 설정한다.
+
+```java
+Map<String, Object> map = new ConcurrentHashMap();
+```
+
+<img src="img/step/executionContext1.png">
+
+<img src="img/step/executionContext2.png">
 
 <br/>
 
