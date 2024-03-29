@@ -182,6 +182,7 @@ class MyTest {
 # 테스트 대역 Test Double
 
 - 테스트 대역
+- 참고할만한 글: [마틴 파울러 아티클](https://martinfowler.com/articles/mocksArentStubs.html)
 - 아래의 예시를 보자. 테스트가 돌아갈 때마다 실제 이메일을 보내는 게 맞을까? 아니다. 그 부분에 가짜 객체를 넣어주는 것이 좋다. 
 
 ```java
@@ -226,6 +227,7 @@ class DummyRegisterEmailSender implements RegisterEmailSender {
 ## 2. Fake
 
 - Local에서 사용하거나 테스트에서 사용하기 위해 만들어진 가짜 객체
+- 단순한 형태로 동일한 기능은 수행하나, 프로덕션에서 쓰기에는 부족한 객체
 - 자체적인 로직이 있다는 점에서 Dummy와 다르다.
 
 ```java
@@ -276,6 +278,7 @@ class FakeRegisterEmailSender implements RegisterEmailSender {
 ## 3. Stub
 
 - 미리 준비된 값을 출력하는 객체
+- 미리 준비된 결과 외에는 응답하지 않는다.
 
 ```java
 class StubUserRepository implements UserRepository {
@@ -316,9 +319,24 @@ class MyTest {
 ## 4. Mock
 
 - 메소드 호출을 확인하기 위한 객체
+- 행위에 대한 기대를 명세하고 그에 따라 동작하도록 만들어진 객체
 - 자가 검증 능력을 가지고 있다.
 - 사실상 테스트 더블과 동일한 의미로 사용된다. (stub, dummy, fake 모두 mock이라고 부른다.)
 
 ## 5. Spy
 
-- 메소드 호출을 전부 기록했다가 나중에 확인하기 위한 객체
+- Stub이면서 호출된 내용을 기록하여 보여줄 수 있는 객체
+- 일부는 실제 객체처럼 동작시키고 일부만 Stubbing할 수 있다.
+
+
+## Stub vs Mock
+
+### Stub
+
+- 상태 검증(State Verification)
+- 어떤 기능을 요청했을 때 내부적인 상태가 어떻게 바뀌었는지에 집중한다.
+
+### Mock
+
+- 행위 검증(Behavior Verification)
+- 어떤 메소드가 실행했을 때 어떤 결과가 Return 되는지.
