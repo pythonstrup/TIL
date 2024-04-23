@@ -132,6 +132,7 @@ class MyTest {
 
 ## 5. Test Fixture
 
+- Fixture: 고정물, 고정되어 있는 물체
 - 테스트에 필요한 자원을 생성하는 것
 
 ```java
