@@ -87,3 +87,31 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 	static class Beans { }
 }
 ```
+
+<br/>
+
+## 기본 개념
+
+<img src="img/security_builder01.png">
+
+- `SecurityBuilder`는 빌더 클래스로 웹 보안을 구성하는 빈 객체와 설정 클래스를 생성하는 역할을 한다.
+  - 대표적인 구현체로는 `HttpSecurity`, `WebSecurity` 등이 있다.
+- `SecurityConfigurer`는 Http 요청과 관련된 보안처리를 담당하는 필터들을 생성하고 초기화 설정에 관여한다.
+  - `SecurityBuilder`는 `SecurityConfigurer`를 참조하고 있다.
+  - 인증 및 인가 초기화 작업이 `SecurityConfigurer`에 의해 진행된다.
+
+<img src="img/security_builder02.png">
+
+1. `AutoConfiguration`(자동 설정)에 의해 `SecurityBuilder` 클래스가 생성된다.
+2. `SecurityBuilder` 클래스는 설정 클래스인 `SecurityConfigurer`를 생성한다.
+3. `SecurityConfigurer`는 매개변수로 `builder`를 받아 `init(B builder)` / `configure(B builder)` 메소드로 초기화 작업을 진행한다.
+    - 여기서 `builder`란 `SecurityBuilder`를 의미한다.
+    - `init(B builder)` / `configure(B builder)` 메소드를 통해 필터를 생성하고 인증/인ㄴ 초기화 작업을 진행한다.
+
+<img src="img/security_builder03.png">
+
+- `SecurityBuilder` 클래스의 구현체 중에서 가장 핵심적인 `HttpSecurity`의 예시를 살펴보자.
+1. 자동 설정에 의해 `HttpSecurity` 구현체가 빈으로 생성되어 등록된다.
+2. `HttpSecurity`는 `SecurityConfigurer`의 수많은 설정 클래스를 생성한다.
+3. `SecurityConfigurer`는 또 필요한 필터를 생성한다.
+
