@@ -90,7 +90,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 
 <br/>
 
-## 기본 개념
+## SecurityBuilder & SecurityConfigurer
 
 <img src="img/security_builder01.png">
 
@@ -115,3 +115,48 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 2. `HttpSecurity`는 `SecurityConfigurer`의 수많은 설정 클래스를 생성한다.
 3. `SecurityConfigurer`는 또 필요한 필터를 생성한다.
 
+## HttpSecurity
+
+<img src="img/http_security01.png">
+
+- `HttpSecurityConfiguration`에서 HttpSecurity를 생성하고 초기화를 진행한다.
+- `HttpSecurity`는 보안에 필요한 각 설정 클래스와 필터를 생성하고 최종적으로 `SecurityFilterChain` 빈을 생성한다.
+
+<br/>
+
+### SecurityFilterChain
+
+- `HttpSecurity`의 결과물이다.
+- `SecurityFilterChain`은 인터페이스이며 `DefaultSecurityFilterChain`라는 구현체가 존재한다.
+  
+<img src="img/http_security02.png">
+
+1. 클라이언트가 서버로 요청을 보냈을 때, 요청된 request와 requestMatcher를 매칭한다.
+    - 매칭되면 getFilter()를 통해 필터 체인에 포함된 필터 리스트를 가져와 작업을 수행한다.
+    - 매칭되니 않으면 해당 `SecurityFilterChain`은 건너 뛰게 된다.
+2. 필터에서는 `FilterChain` 파라미터의 `doFilter()` 메소드를 사용해 필터가 차례대로 실행된다.
+3. 필터에서 모든 요청이 처리되면 `Servlet`으로 전달된다.
+
+<br/>
+
+## WebSecurity
+
+<img src="img/web_security01.png">
+
+- `WebSecurityConfiguration`에서 `WebSecurity`를 생성하고 초기화를 진행한다.
+- `WebSecurity`는 `HttpSecurity`에서 생성한 `SecurityFilterChain` 빈을 `SecurityBuilder`에 저장한다.
+- `WebSecurity`가 `build()`를 실행하면 `SecurityBuilder`에서 `SecurityFilterChain`을 꺼내 `FilterChainProxy`를 생성자에게 전달한다.
+- `SecurityFilterChain`은 필터들의 목록을 가지고 있을 뿐이다. `FilterChainProxy`는 `SecurityFilterChain`으로부터 필터를 조회해서 작업을 처리하는 역할을 한다.
+- `WebSecurity`의 `performBuild()`에서 `ArrayList<SecurityFilterChain>` 형태의 `securityFilterChains`라는 변수를 선언하고, `FilterChainProxy`의 생성자에 `securityFilterChains`를 전달해 객체를 생성한다.
+
+```java
+FilterChainProxy filterChainProxy = new FilterChainProxy(securityFilterChains);
+```
+
+<br/>
+
+<br/><br/>
+
+# 참고자료
+
+- [스프링 시큐리티 완전 정복 [6.x 개정판]](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81-%EC%8B%9C%ED%81%90%EB%A6%AC%ED%8B%B0-%EC%99%84%EC%A0%84%EC%A0%95%EB%B3%B5/dashboard)
