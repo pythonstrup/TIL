@@ -155,6 +155,71 @@ FilterChainProxy filterChainProxy = new FilterChainProxy(securityFilterChains);
 
 <br/>
 
+## Filter
+
+- 서블릿 필터는 웹 어플리케이션에서 클라이언트의 요청과 서버의 응답을 가공하거나 검사하는데 사용되는 구성 요소
+- 클라이언트의 요청이 서블릿에 도달하기 전이나 서블릿이 응답을 클라이언트에게 보내기 전에 특정 작업을 수행할 수 있다.
+- 서블릿 컨테이너(WAS)에서 생성되고 실행되며 종료된다.
+
+<img src="img/filter01.png">
+
+```java
+public interface Filter {
+
+    default void init(FilterConfig filterConfig) throws ServletException {
+    }
+
+    void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException;
+
+    default void destroy() {
+    }
+}
+
+```
+
+### DelegatingFilterProxy
+
+- 스프링에서 사용되는 특별한 서블릿 필터로 서블릿 컨테이너와 스프링 애플리케이션 컨텍스트 간의 연결고리이다.
+- 서블릿 필터의 역할을 수행함과 동시에 스프링 의존성 주입 및 빈 관리 기능과 연동되도록 설계된 필터다.
+- `springSecurityFilterChain` 이라는 이름으로 생성된 빈(`FilterChainProxy`)을 `ApplicationContext`에서 찾아 요청을 위임한다.
+- 실제 보안 처리는 수행하지 않지만, 스프링 애플리케이션 컨텍스트와 연결해 스프링의 기능을 사용할 수 있도록 도와준다.
+  - 원래 서블릿 컨테이너에서는 Spring의 DI나 AOP를 사용하지 못한다.
+
+<img src="img/filter02.png">
+
+### FilterChainProxy
+
+- `springSecurityFilterChain`의 이름으로 생성되는 필터 빈으로서 `DelegatingFilterProxy`으로부터 요청을 위임받고 보안 처리 역할을 한다.
+- 내부적으로 하나 이상의 `SecurityFilterChain` 객체를 가지고 있으며 요청 URL 정보를 기준으로 적절한 `SecurityFilterChain`을 선택하여 필터를 호출한다.
+- `HttpSecurity`를 통해 API 추가 시 관련 필터가 추가된다.
+- 사용자의 요청을 필터 순서대로 호출해 보안 기능을 동작시키고 필요 시 직접 필터를 생성해 기존의 필터의 앞단이나 뒷단에 추가할 수 있다.
+
+<img src="img/filter03.png">
+
+### FilterChainProxy에서 처리되는 필터
+
+- 총 16개의 기본 필터가 순서대로 실행된다.
+- 맨 마지막 인가 처리를 하는 필터까지 특별한 예외나 오류가 발생하지 않으면 성공적으로 요청이 서블릿으로 넘어간다.
+0. `DisableEncodeUrlFilter`
+1. `WebAsyncManagerIntegrationFilter`
+2. `SecurityContextHolderFilter`
+3. `HeaderWriterFilter`
+4. `CorsFilter`
+5. `CsrfFilter`
+6. `LogoutFilter`
+7. `UsernamePasswordAuthenticationFilter`
+8. `DefaultLoginPageGeneratingFilter`
+9. `DefaultLogoutPageGeneratingFilter`
+10. `BasicAuthenticationFilter`
+11. `RequestCacheAwareFilter`
+12. `SecurityContextHolderAwareReuqestFilter`
+13. `AnonymousAuthenticationFilter`
+14. `ExceptionTranslationFilter`
+15. `AuthorizationFilter`
+
+<br/>
+
 <br/><br/>
 
 # 참고자료
