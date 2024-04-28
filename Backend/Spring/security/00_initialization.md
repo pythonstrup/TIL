@@ -92,7 +92,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 
 ## SecurityBuilder & SecurityConfigurer
 
-<img src="img/security_builder01.png">
+<img src="img/01/security_builder01.png">
 
 - `SecurityBuilder`는 빌더 클래스로 웹 보안을 구성하는 빈 객체와 설정 클래스를 생성하는 역할을 한다.
   - 대표적인 구현체로는 `HttpSecurity`, `WebSecurity` 등이 있다.
@@ -100,7 +100,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
   - `SecurityBuilder`는 `SecurityConfigurer`를 참조하고 있다.
   - 인증 및 인가 초기화 작업이 `SecurityConfigurer`에 의해 진행된다.
 
-<img src="img/security_builder02.png">
+<img src="img/01/security_builder02.png">
 
 1. `AutoConfiguration`(자동 설정)에 의해 `SecurityBuilder` 클래스가 생성된다.
 2. `SecurityBuilder` 클래스는 설정 클래스인 `SecurityConfigurer`를 생성한다.
@@ -108,7 +108,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
     - 여기서 `builder`란 `SecurityBuilder`를 의미한다.
     - `init(B builder)` / `configure(B builder)` 메소드를 통해 필터를 생성하고 인증/인ㄴ 초기화 작업을 진행한다.
 
-<img src="img/security_builder03.png">
+<img src="img/01/security_builder03.png">
 
 - `SecurityBuilder` 클래스의 구현체 중에서 가장 핵심적인 `HttpSecurity`의 예시를 살펴보자.
 1. 자동 설정에 의해 `HttpSecurity` 구현체가 빈으로 생성되어 등록된다.
@@ -117,7 +117,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 
 ## HttpSecurity
 
-<img src="img/http_security01.png">
+<img src="img/01/http_security01.png">
 
 - `HttpSecurityConfiguration`에서 HttpSecurity를 생성하고 초기화를 진행한다.
 - `HttpSecurity`는 보안에 필요한 각 설정 클래스와 필터를 생성하고 최종적으로 `SecurityFilterChain` 빈을 생성한다.
@@ -129,7 +129,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 - `HttpSecurity`의 결과물이다.
 - `SecurityFilterChain`은 인터페이스이며 `DefaultSecurityFilterChain`라는 구현체가 존재한다.
   
-<img src="img/http_security02.png">
+<img src="img/01/http_security02.png">
 
 1. 클라이언트가 서버로 요청을 보냈을 때, 요청된 request와 requestMatcher를 매칭한다.
     - 매칭되면 getFilter()를 통해 필터 체인에 포함된 필터 리스트를 가져와 작업을 수행한다.
@@ -141,7 +141,7 @@ class DefaultWebSecurityCondition extends AllNestedConditions {
 
 ## WebSecurity
 
-<img src="img/web_security01.png">
+<img src="img/01/web_security01.png">
 
 - `WebSecurityConfiguration`에서 `WebSecurity`를 생성하고 초기화를 진행한다.
 - `WebSecurity`는 `HttpSecurity`에서 생성한 `SecurityFilterChain` 빈을 `SecurityBuilder`에 저장한다.
@@ -161,7 +161,7 @@ FilterChainProxy filterChainProxy = new FilterChainProxy(securityFilterChains);
 - 클라이언트의 요청이 서블릿에 도달하기 전이나 서블릿이 응답을 클라이언트에게 보내기 전에 특정 작업을 수행할 수 있다.
 - 서블릿 컨테이너(WAS)에서 생성되고 실행되며 종료된다.
 
-<img src="img/filter01.png">
+<img src="img/01/filter01.png">
 
 ```java
 public interface Filter {
@@ -186,7 +186,7 @@ public interface Filter {
 - 실제 보안 처리는 수행하지 않지만, 스프링 애플리케이션 컨텍스트와 연결해 스프링의 기능을 사용할 수 있도록 도와준다.
   - 원래 서블릿 컨테이너에서는 Spring의 DI나 AOP를 사용하지 못한다.
 
-<img src="img/filter02.png">
+<img src="img/01/filter02.png">
 
 ### FilterChainProxy
 
@@ -195,7 +195,7 @@ public interface Filter {
 - `HttpSecurity`를 통해 API 추가 시 관련 필터가 추가된다.
 - 사용자의 요청을 필터 순서대로 호출해 보안 기능을 동작시키고 필요 시 직접 필터를 생성해 기존의 필터의 앞단이나 뒷단에 추가할 수 있다.
 
-<img src="img/filter03.png">
+<img src="img/01/filter03.png">
 
 ### FilterChainProxy에서 처리되는 필터
 
