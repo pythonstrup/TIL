@@ -29,3 +29,23 @@ HttpSecurity.formLogin ( httpSecurityFormLoginConfigurer -> httpSecurityFormLogi
                                                   // 기본값은 SavedRequestAwareAuthenticationSuccessHandler 이다
     .permitAll());                                // failureUrl(), loginPage(), loginProcessingUrl() 에 대한 URL 에 모든 사용자의 접근을 허용 함
 ```
+
+<br/>
+
+## UsernamePasswordAuthenticationFilter
+
+- 스프링 시큐리티는 `AbstractAuthenticationProcessingFilter` 클래스를 사용자의 자격 증명을 인증하는 기본 필터로 사용
+- `UsernamePasswordAuthenticationFilter`는 `AbstractAuthenticationProcessingFilter`를 확장한 클래스로 `HttpServletRequest`에서 제출된 사용자 이름과 비밀번호로부터 인증을 수행
+- 인증 프로세스가 초기화 될 때 로그인 페이지와 로그아웃 페이지 생성을 위한 `DefaultLoginPageGeneratingFilter` 및 `DefaultLogoutPageGeneratingFilter`가 초기화
+
+<img src="img/02/username_password_authentication_filter01.png">
+
+### 처리과정
+
+- 사용자가 Get 방식으로 로그인 요청을 하면 `UsernamePasswordAuthenticationFilter`가 요청을 가로챈다.
+- 이 때 인증 처리를 해야하는 요청인지 아닌지를 검증하고 과정을 진행한다. (`RequestMatcher`에서 true를 반환해야 다음 과정으로 넘어감)
+  - `RequestMatcher`에서 false를 반환하면 `chain.doFilter()`가 호출되어 다음 필터로 넘어가 버린다. 
+- `UsernamePasswordAuthenticationToken`은 인증 처리를 하기 위한 인증 객체다.
+- `AuthenticationManager`는 아이디와 패스워드가 담긴 토큰(`UsernamePasswordAuthenticationToken`)을 받아 인증 처리를 진행한다.
+
+<img src="img/02/username_password_authentication_filter02.png">
