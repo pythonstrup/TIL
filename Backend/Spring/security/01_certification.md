@@ -49,3 +49,34 @@ HttpSecurity.formLogin ( httpSecurityFormLoginConfigurer -> httpSecurityFormLogi
 - `AuthenticationManager`는 아이디와 패스워드가 담긴 토큰(`UsernamePasswordAuthenticationToken`)을 받아 인증 처리를 진행한다.
 
 <img src="img/02/username_password_authentication_filter02.png">
+
+<br/>
+
+## HTTP Basic 인증
+
+- HTTP는 액세스 제어와 인증을 위한 프레임워크를 제공하며 가장 일반적인 인증 방식은 "Basic" 인증 방식이다.
+- RFC 7235 표준이며 인증 프로토콜은 HTTP 인증 헤더에 기술되어 있다.
+
+<img src="img/02/http_basic01.png">
+
+1. 클라이언트는 인증정보 없이 서버로 접속을 시도한다.
+2. 서버가 클라이언트에게 인증 요구를 보낼 때 401 Unauthorized 응답과 함께 WWW-Authenticate 헤더를 기술해서 realm(보안영역)과 Basic 인증 방법을 보낸다.
+3. 클라이언트가 서버로 접속할 때 Base64로 username과 password를 인코딩하고 Authorization 헤더에 담아서 요청한다.
+4. 성공적으로 완료되면 정상적인 상태 코드를 반환한다.
+
+> - base64로 인코딩된 값은 디코딩이 가능하기 때문에 인증정보가 노출된다.
+> - 이 상태로 그대로 통신하면 민감 정보가 노출될 수 있기 때문에!! HTTP Basic 인증은 반드시 HTTPS와 같이 TLS 기술과 함께 사용해야 한다.
+ 
+### HttpBasic API
+
+- `HttpBasicConfigurer` 설정 클래스를 통해 여러 API를 설정할 수 있다.
+- 내부적으로 `BasicAuthenticationFilter`가 생성되어 기본 인증 방식의 인증 처리를 담당하게 된다.
+- 사실 바꿀 것이 별로 없다. 기본 설정으로 둬도 문제될 것이 없다.
+
+```java
+HttpSecurity.httpBasic(httpSecurityHttpBasicConfigurer -> httpSecurityHttpBasicConfigurer
+        .realmName("name") // HTTP 기본 영역을 설정
+        .authenticationEntryPoint((request, response, authException) -> {}) // 인증 실패 시 호출되는 AuthenticationEntryPoint
+                                                                            // 기본값은 "Realm" 영역으로 BasicAuthenticationEntryPoint를 사용
+);
+```
