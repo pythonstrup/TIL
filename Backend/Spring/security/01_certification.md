@@ -80,3 +80,23 @@ HttpSecurity.httpBasic(httpSecurityHttpBasicConfigurer -> httpSecurityHttpBasicC
                                                                             // 기본값은 "Realm" 영역으로 BasicAuthenticationEntryPoint를 사용
 );
 ```
+
+## BasicAuthenticationFilter
+
+- 기본 인증 서비스를 제공할 때 사용
+- `BasicAuthenticationConverter`를 사용해서 요청 헤더에 기술된 인증정보의 유효성을 체크하며 Base64 인코딩된 username과 password 추출
+  - `BasicAuthenticationConverter`에서 유효성 체크가 성공해야 `UsernamePasswordAuthenticationToken`으로 username과 password를 추출한다.
+- 인증 이후 세션을 사용하는 경우와 사용하지 않는 경우에 따라 처리되는 흐름의 차이가 있다.
+- 세션을 사용하는 경우 매 요청마다 인증과정을 거치지 않으나 세션을 사용하지 않는 경우 매 요청마다 인증과정을 거치야 한다.
+
+<img src="img/02/basic_authentication_filter01.png">
+
+- `OncePerRequestFilter`눈 해당 필터가 요청에 대해 한 번만 동작하도록 보장해주는 필터다.
+  - `doFilterInternal()`이라는 메소드로 필터가 실행된다.
+- session에 인증객체가 저장되어 있으면 그냥 넘어가고, 인증객체가 존재하지 않으면 인증 처리를 실행한다.
+
+```java
+public class BasicAuthenticationFilter extends OncePerRequestFilter {
+  ...
+}
+```
