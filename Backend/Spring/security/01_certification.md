@@ -15,19 +15,28 @@
 - 내부적으로 `UsernamePasswordAuthenticationFilter`가 생성되어 폼 방식의 인증 처리 담당
 
 ```java
-HttpSecurity.formLogin ( httpSecurityFormLoginConfigurer -> httpSecurityFormLoginConfigurer
-    .loginPage("/loginPage")             // 사용자 정의 로그인 페이지로 전환, 기본 로그인페이지 무시
-    .loginProcessingUrl("/loginProc")    // 사용자 이름과 비밀번호를 검증할 URL 지정 (Form action)
-    .defaultSuccessUrl("/", [alwaysUse]) // 로그인 성공 이후 이동 페이지, alwaysUse 가 true 이면 무조건 지정된 위치로 이동(기본은 false) 
-                                         // 인증 전에 보안이 필요한 페이지를 방문하다가 인증에 성공한 경우이면 이전 위치로 리다이렉트 됨
-    .failureUrl("/failed")               // 인증에 실패할 경우 사용자에게 보내질 URL 을 지정, 기본값은 "/login?error" 이다
-    .usernameParameter("username")       // 인증을 수행할 때 사용자 이름(아이디)을 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 username
-    .passwordParameter("password")       // 인증을 수행할 때 비밀번호를 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 password
-    .failureHandler(AuthenticationSuccessHandler) // 인증 실패 시 사용할 AuthenticationFailureHandler를 지정
-                                                  // 기본값은 SimpleUrlAuthenticationFailureHandler 를 사용하여 "/login?error"로 리다이렉션 함
-    .successHandler(AuthenticationFailureHandler) // 인증 성공 시 사용할 AuthenticationSuccessHandler를 지정
-                                                  // 기본값은 SavedRequestAwareAuthenticationSuccessHandler 이다
-    .permitAll());                                // failureUrl(), loginPage(), loginProcessingUrl() 에 대한 URL 에 모든 사용자의 접근을 허용 함
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_httpBasic {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.formLogin ( httpSecurityFormLoginConfigurer -> httpSecurityFormLoginConfigurer
+                    .loginPage("/loginPage")                      // 사용자 정의 로그인 페이지로 전환, 기본 로그인페이지 무시
+                    .loginProcessingUrl("/loginProc")             // 사용자 이름과 비밀번호를 검증할 URL 지정 (Form action)
+                    .defaultSuccessUrl("/", true)                 // 로그인 성공 이후 이동 페이지, alwaysUse 가 true 이면 무조건 지정된 위치로 이동(기본은 false) 
+                                                                  // 인증 전에 보안이 필요한 페이지를 방문하다가 인증에 성공한 경우이면 이전 위치로 리다이렉트 됨
+                    .failureUrl("/failed")                        // 인증에 실패할 경우 사용자에게 보내질 URL 을 지정, 기본값은 "/login?error" 이다
+                    .usernameParameter("username")                // 인증을 수행할 때 사용자 이름(아이디)을 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 username
+                    .passwordParameter("password")                // 인증을 수행할 때 비밀번호를 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 password
+                    .failureHandler(AuthenticationSuccessHandler) // 인증 실패 시 사용할 AuthenticationFailureHandler를 지정
+                                                                  // 기본값은 SimpleUrlAuthenticationFailureHandler 를 사용하여 "/login?error"로 리다이렉션 함
+                    .successHandler(AuthenticationFailureHandler) // 인증 성공 시 사용할 AuthenticationSuccessHandler를 지정
+                                                                  // 기본값은 SavedRequestAwareAuthenticationSuccessHandler 이다
+                    .permitAll());                                // failureUrl(), loginPage(), loginProcessingUrl() 에 대한 URL 에 모든 사용자의 접근을 허용 함
+    return http.build();
+  }
+}
 ```
 
 <br/>
@@ -74,12 +83,22 @@ HttpSecurity.formLogin ( httpSecurityFormLoginConfigurer -> httpSecurityFormLogi
 - 사실 바꿀 것이 별로 없다. 기본 설정으로 둬도 문제될 것이 없다.
 
 ```java
-HttpSecurity.httpBasic(httpSecurityHttpBasicConfigurer -> httpSecurityHttpBasicConfigurer
-        .realmName("name") // HTTP 기본 영역을 설정
-        .authenticationEntryPoint((request, response, authException) -> {}) // 인증 실패 시 호출되는 AuthenticationEntryPoint
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_httpBasic {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.httpBasic(httpSecurityHttpBasicConfigurer -> httpSecurityHttpBasicConfigurer
+      .realmName("name") // HTTP 기본 영역을 설정
+      .authenticationEntryPoint((request, response, authException) -> {})); // 인증 실패 시 호출되는 AuthenticationEntryPoint
                                                                             // 기본값은 "Realm" 영역으로 BasicAuthenticationEntryPoint를 사용
-);
+    return http.build();
+  }
+}
 ```
+
+<br/>
 
 ## BasicAuthenticationFilter
 
@@ -100,3 +119,65 @@ public class BasicAuthenticationFilter extends OncePerRequestFilter {
   ...
 }
 ```
+
+<br/>
+
+## RememberMe
+
+- 사용자가 웹사이트나 애플리케이션 로그인할 때 자동으로 인증 정보를 기억하는 기능
+- `UsernamePasswordAuthenticationFilter`와 함께 사용되며, `AbstractAuthenticationProcessingFilter` 슈퍼클래스에서 훅을 통해 구현된다.
+- 인증 성공 시 `RememberMeServices.loginSuccess()` 메소드를 통해 `RememberMe` 토큰을 생성하고 쿠키로 전달한다.
+- 인증 실패 시 `RememberMeServices.loginFail()` 메소드를 통해 쿠키를 지운다.
+- `LogoutFilter`와 연계해서 로그아웃 시 쿠키를 지운다.
+
+### 토큰 생성
+
+- 기본적으로 암호화된 토큰으로 생성되며 브라우저에 쿠키를 보내고 향후 세션에서 이 쿠키를 감지하여 자동 로그인이 이뤄지는 방식으로 진행된다.
+
+```java
+base64(username + ":" + expirationTime + ":" + algorithmName + ":" + algorithmHex(username + ":" + expirationTime + ":" + password + ":" + key))
+```
+
+- username: `UserDetailsService`로 식별 가능한 사용자 이름
+- password: 검색된 `UserDetails`와 일치하는 비밀번호
+- expirationTime: rememberMe 토큰이 만료되는 날짜와 시간을 밀리초로 표현
+- key: rememberMe 토큰의 수정을 방지하기 위한 키
+- algorithmName: rememberMe 토큰 서명을 생성하고 검증하는 데 사용되는 알고리즘(기본적으로 SHA-256 알고리즘을 사용)
+
+### 구현체
+
+- 기본적으로 두 구현체 모두 사용자의 정보를 검색하기 위한 `UserDetailsService`가 필요하다.
+- `TokenBasedRememberMeServices`: 쿠키 기반 토큰의 보안을 위해 해싱 사용
+- `PersistenceBasedRememberMeServices`: 생성된 토큰을 저장하기 위해 데이터베이스나 다른 영구 저장 매체 사용
+
+### API
+
+```java
+@Configuration
+@EnableWebSecurity
+@RequiredConstructor
+public class SecurityConfig_httpBasic {
+  
+  private final UserDetailsService userDetailsService;
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.rememberMe(httpSecurityRememberMeConfigurer -> httpSecurityRememberMeConfigurer
+            .alwaysRemember(true)                   // rememberMe 매개변수가 설정되지 않았을 때도 쿠키가 항상 생성되어야 하는지에 대한 여부
+            .tokenValiditySeconds(3600)             // 토큰이 유효한 시간(초 단위)를 지정할 수 있다.
+            .userDetailsService(userDetailsService) // UserDetails를 조회하기 위해 사용되는 UserDetailsService를 지정
+            .rememberMeParameter("remember")        // 로그인 시 사용자를 기억하기 위해 사용되는 HTTP 매개변수. 기본값은 "remember-me" 이다.
+            .rememberMeCookieName("remember")       // rememberMe 인증을 위한 토큰을 저장하는 쿠키 이름. 기본값은 "remember-me" 이다.
+            .key("security"));                      // rememberMe 인증을 위해 생성된 토큰을 식별하는 키를 설정
+    return http.build();
+  }
+}
+```
+
+<br/>
+
+<br/><br/>
+
+# 참고자료
+
+- [스프링 시큐리티 완전 정복 [6.x 개정판]](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81-%EC%8B%9C%ED%81%90%EB%A6%AC%ED%8B%B0-%EC%99%84%EC%A0%84%EC%A0%95%EB%B3%B5/dashboard)
