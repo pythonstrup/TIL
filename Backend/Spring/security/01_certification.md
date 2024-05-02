@@ -176,6 +176,81 @@ public class SecurityConfig_httpBasic {
 
 <br/>
 
+## RememberMeAuthenticationFilter
+
+- `SecurityContextHolder`에 `Authentication`이 포함되지 않은 경우 실행되는 필터이다.
+- 세션이 만료되었거나 애플리케이션 종료로 인해 인증 상태가 소멸된 경우 토큰 기반 인증을 사용해 유효성을 검사하고 토큰이 검증되면 자동 로그인 처리를 수행한다.
+
+<br/>
+
+## 익명 사용자
+
+- 스프링 시큐리티에서 "익명으로 인증된" 사용자와 인증되지 않은 사용자 간에 실제 개념적 차이는 없으면 단지 액세스 제어 속성을 구성하는 더 편리한 방법을 제공
+- `SecurityContextHolder`가 항상 Authentication 객체를 포함하고 null을 포함하지 않는다는 규칙을 세우면 클래스를 더 견고하게 작성 가능
+- 인증 사용자와 익명 사용자를 구분!! 
+  - 익명 인증 객체를 세션에 저장하지 않는다.
+  - 익명 인증 사용자의 권한을 별도로 운용할 수 있다. 
+  - 즉 "그냥" 인증된 사용자가 ("익명으로" 인증된 사용자만 접근할 수 있는 리소스에) 접근할 수 없도록 구성이 가능하다.
+
+### API
+
+- `AnonymousAuthenticationFilter`에서 익명 사용자의 인증 객체를 생성하고 SecurityContext에 저장하는 역할을 한다. 
+- `AnonymousAuthenticationToken`라는 익명 사용자용 토큰을 만든다.
+  - `anonymousUser`를 담는다. => API 중에서 `principal()`
+  - `ROLE_ANONYMOUS`과 같은 롤은 담는다. = > API 중에서 `authority()`
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_rememberMe {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .formLogin(Customizer.withDefaults())
+            .anonymous(anonymous -> anonymous
+                    .principal("guest")
+                    .authorities("ROLE_GUEST"));
+    return http.build();
+  }
+}
+```
+
+### 스프링 MVC에서 익명 인증 사용하기
+
+- 스프링 MVC가 `HttpServletRequest#getPrincipal`을 사용해 파라미터를 해결하는데 요청이 익명일 때 이 값이 `null`이다.
+- 따라서 익명 사용자를 처리할 수 없게 되어 버린다.
+
+```java
+public String method(Authentication authentication) {
+  if (authentication instanceof AnonymousAuthenticationToken) {
+    return "anonymous";  
+  } else {
+    return "not anonymous";
+  }
+}
+```
+
+- 익명 요청에서 `Authentication`을 얻고 싶다면 `@CurrentSecurityContext`를 사용하면 된다.
+- `CurrentSecurityContextArgumentResolver`에서 요청을 가로채어 처리한다.
+- `SecurityContext`를 받아와 `Authentication`을 호출할 수 있다.
+
+```java
+public String method(@CurrentSecurityContext SecurityContext context) {
+  return context.getAuthentication().getName();  
+}
+```
+
+### AnonymousAuthenticationFilter
+
+- `SecurityContextHolder`에서 `Authentication` 객체가 없을 경우(null인 경우) 감지한다. 
+- 필요한 경우 새로운 `Authenticaiton` 객체로 채운다.
+
+<img src="img/02/anonymous01.png">
+
+<br/>
+
 <br/><br/>
 
 # 참고자료
