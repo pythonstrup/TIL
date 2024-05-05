@@ -251,6 +251,53 @@ public String method(@CurrentSecurityContext SecurityContext context) {
 
 <br/>
 
+## Logout
+
+- 기본적으로 `DefaultLogoutPageGeneratingFilter`를 통해 로그아웃 페이지를 제공
+- GET `/logout`으로 접근 가능
+- 원래 POST `/logout`으로만 가능하나 CSRF 기능을 비활성화하거나 `RequestMatcher`를 사용할 경우 GET, PUT, DELETE 모두 가능
+- 로그아웃 필터를 거치지 않고 스프링 MVC에서 커스텀할 수 있으며 로그인 페이지가 커스텀하게 생성될 경우 로그아웃 기능도 커스텀해야한다.
+
+### API
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_rememberMe {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.logout(httpSecurityLogoutConfigurer -> httpSecurityLogoutConfigurer
+            .logoutUrl("/logout") // 로그아웃 실행 URL 설정
+            .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "POST")) // logoutUrl 메소드 보다 우선순위 높음
+                                                                                // Method를 지정하지 않으면 어떤 HTTP 메소드로 요청될 수 있다.
+            .logoutSuccessUrl("/logout/success") // 로그아웃을 실행할 때 리다이렉션할 URL 설정
+            .logoutSuccessHandler((request, response, authentication) -> { // 로그아웃 성공 시 사용할 핸들러 설정
+              response.sendRedirect("/logout/success");                    // 설정되면 logoutSuccessUrl 메소드가 무시된다. 
+            })
+            .deleteCookies("JSESSIONID", "CUSTOM_COOKIE") // 로그아웃 성공 시 제거될 쿠키 지정
+            .invalidateHttpSession(true)  // HttpSession을 무효화해야 하는 경우 true(default), 그렇지 않으면 false
+            .clearAuthentication(true)    // 로그아웃 시 SecurityContextLogoutHandler가 인증(Authentication)을 삭제해야 하는지 여부 명시
+            .addLogoutHandler(((request, response, authentication) -> {})) // 기존의 로그아웃 핸들러 뒤에 새로운 LogoutHandler를 추가할 수 있다.
+            .permitAll()); // logoutUrl(), RequestMatcher()의 URL에 대한 모든 사용자의 접근을 허용
+    return http.build();
+  }
+}
+```
+
+### LogoutFilter
+
+- `RequestMatcher`로 요청 정보가 매칭되는지 확인하고, 매칭되지 않으면 `doFilter` 메소드로 넘겨버린다. 
+- 스프링 시큐리티에서 제공하는 기본적인 로그아웃 핸들러 구현체는 아래와 같다.
+  - `CookieClearingLogoutHandler`
+  - `CsrfLogoutHandler`
+  - `SecurityContextLogoutHandler`
+  - `LogoutSuccessEventPublishingLogoutHandler`
+
+<img src="img/02/logout_filter01.png">
+
+<br/>
+
 <br/><br/>
 
 # 참고자료
