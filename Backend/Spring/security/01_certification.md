@@ -298,6 +298,71 @@ public class SecurityConfig_rememberMe {
 
 <br/>
 
+## 요청 캐시
+
+### RequestCache
+
+- 인증 절차 문제로 리다이렉트 된 후에 이전에 했던 요청 정보를 담고 있는 `SavedRequest` 객체를 쿠키 혹은 세션에 저장하고 필요시 다시 가져와 실행하는 캐시 매커니즘
+- `HttpSessionRequestCache`라는 구현체가 있음
+
+### SavedRequest
+
+- `SavedRequest`는 로그인과 같은 인증 절차 후 사용자를 인증 이전의 원래 페이지로 안내
+- 이전 요청과 관련된 여러 정보를 저장
+- `DefaultSavedRequest`라는 구현체가 존재
+
+### 흐름도
+
+<img src="img/02/request_cache01.png">
+
+### API
+
+- 요청 URL에 `customParam=y` 라는 이름의 매개 변수가 있는 경우에만 `HttpSession`에 저장된 `SavedRequest`를 꺼내오도록 설정 가능
+- 기본값은 `continue`
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_rememberMe {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
+    requestCache.setMatchingRequestParameterName("customParam=y");
+    http.requestCache(cache -> cache
+                    .requestCache(requestCache));
+    return http.build();
+  }
+}
+```
+
+- 요청을 저장하지 않기 위해 `NullRequestCache` 구현을 사용할 수 있다.
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig_rememberMe {
+
+  @Bean
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    NullRequestCache nullRequestCache = new NullRequestCache();
+    http.requestCache(cache -> cache
+                    .requestCache(nullRequestCache));
+    return http.build();
+  }
+}
+```
+
+### RequestCacheAnswerFilter
+
+- `RequestCacheAnswerFilter`는 이전에 저장했던 웹 요청을 다시 불러오는 역할
+- `SavedRequest`가 현재 요청과 일치하면 필터 체인의 `doFilter` 메소드에 전달
+- `SavedRequest`가 없으면 필터는 요청을 그대로 진행시킨다.
+
+<img src="img/02/request_cache02.png">
+
+<br/>
+
 <br/><br/>
 
 # 참고자료
