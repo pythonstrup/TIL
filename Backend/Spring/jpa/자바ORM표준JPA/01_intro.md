@@ -115,3 +115,9 @@ public class OracleDialect extends Dialect {...}
 ```java
 public class H2Dialect extends Dialect {...}
 ```
+
+<br/>
+
+# 참고자료
+
+- 자바 ORM 표준 JPA 프로그래밍, 김영한 지음
