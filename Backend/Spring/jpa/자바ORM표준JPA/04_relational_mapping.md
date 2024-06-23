@@ -168,7 +168,6 @@ public class TeamDeletion {
 ## 3. 양방향 연관관계 
 
 ```java
-
 @Entity
 public class Member {
 
@@ -290,4 +289,7 @@ public void setTeam(Team team) {
 - 비즈니스 중요도를 배제하고 단순히 외래 키 관리자 정도의 의미만 부여해야 한다.
 - 양방향 매핑 시에는 무한 루프에 빠지지 않도록 주의하자.
   - 이런 문제는 엔티티를 JSON으로 변환할 때나 Lombok 라이브러리를 사용할 때 자주 발생한다.
- 
+
+# 참고자료
+
+- 자바 ORM 표준 JPA 프로그래밍, 김영한 지음
