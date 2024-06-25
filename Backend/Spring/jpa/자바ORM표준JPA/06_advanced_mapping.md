@@ -504,6 +504,301 @@ public class GrandChildId implements Serializable {
 }
 ```
 
+## 3-4. 비식별 관계로 구현
+
+- 식별 관계의 복합 키를 사용한 코드와 비교하면 매핑도 쉽고 코드도 단순하다.
+- 복합 키가 없으므로 복합 키 클래스를 만들지 않아도 된다.
+
+```java
+@Entity
+public class Parent {
+  @Id
+  @Column(name = "parent_id")
+  private String id;
+}
+
+@Entity
+public class Child {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "child_id")
+  public ChildId id;
+  
+  @ManyToOne
+  @JoinColumn(name = "parent_id")
+  public Parent parent;
+}
+
+// 손자
+@Entity
+public class GrandChild {
+
+  @Id
+  @GeneratedValue
+  @Column(name = "grand_child_id")
+  private GrandChildId id;
+
+  @ManyToOne
+  @JoinColumn(name = "child_id")
+  private Child child;
+ 
+  ...
+}
+```
+
+## 3-5. 일대일 식별 관계
+
+- 조금 특별한 관계다.
+- 자식 테이블의 기본 키 값으로 부모 테이블의 기본 키 값만 사용한다. 
+- 그래서 부모 테이블의 기본 키가 복합 키가 아니면 자식 테이블의 기본 키는 복합 키로 구성하지 않아도 된다.
+
+```java
+@Entity
+public class Board {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "board_id")
+  private Long id;
+  
+  @OneToOne(mappedBy = "board")
+  private BoardDetail boardDetail;
+}
+
+@Entity
+public class BoardDetail {
+  
+  @Id
+  private Long boardId;
+  
+  @MapsId // BoardDetail.boardId 매핑
+  @OneToOne
+  @JoinColumn(name = "board_id")
+  private Board board;
+}
+```
+
+- `BoardDetail`처럼 식별자가 단순히 컬럼 하나면 `@MapsId`를 사용하고 속성 값은 비워두면 된다.
+
+## 3-6. 식별, 비식별 관계의 장단점
+
+### 데이터베이스 설계 관점에서 보면 다음과 같은 이유로 식별 관계보다는 비식별 관계를 선호한다.
+
+- 식별 관계는 부모 테이블의 기본 키를 자식 테이블로 전파하면서 자식 테이블의 기본 키 컬럼이 점점 늘어난다. 결국 조인할 때 SQL이 복잡해지고 기본 키 인덱스가 불필요하게 커질 수 있다.
+- 식별 관계는 2개 이상의 컬럼을 합해서 복합 기본 키를 만들어야 하는 경우가 많다.
+- 식별 관계를 사용할 때 기본 키로 비즈니스 의미가 있는 자연 키 컬럼을 조합하는 경우가 많다. 반면에 비식별 관계의 기본 키는 비즈니스와 전혀 관계없는 대리 키를 주로 사용한다.
+  - 비즈니스 요구사항은 시간이 지남에 따라 언제가는 변한다. 식별 관계의 자연 키 컬럼들이 자식에 손자까지 전파되면 변경하기 힘들다.
+- 식별 관계는 부모 테이블의 기본 키를 자식 테이블의 기본 키로 사용하므로 비식별 관계보다 테이블 구조가 유연하지 못하다.
+
+### 객체 관계 매핑의 관점에서 비식별 관계를 선호하는 이유
+
+- 일대일 관계를 제외하고 식별 관계는 2개 이상의 컬럼을 묶은 복합 기본 키를 사용한다. JPA에서 복합 키는 별도의 복합 키 클래스로 만들어서 사용해야 한다. 따라서 컬럼이 하나인 기본 키를 매핑하는 것보다 많은 노력이 필요하다.
+- 비식별 관계의 기본 키는 주로 대리 키를 사용하는데 JPA는 `@GeneratedValue`처럼 대리 키를 생성하기 위한 편리한 방법을 제공한다.
+
+### 하지만 식별 관계가 가지는 장점도 있다.
+
+- 기본 키 인덱스를 활용하기 좋다.
+- 상위 테이블들의 기본 키 컬럼을 자식, 손자 테이블들이 가지고 있으므로 특정 상황에서 조인 없이 하위 테이블만으로 검색을 완료할 수 있다.
+
+<br/>
+
+## 4. 조인 테이블
+
+- 데이터베이스 테이블의 연관관계를 설계하는 방법은 2가지다.
+1. 조인 컬럼 사용 (외래 키)
+2. 조인 테이블 사용 (테이블 사용)
+
+### 조인 테이블 사용
+
+- 조인 테이블이라는 별도의 테이블을 사용해서 연관관계를 관리하는 방법이다.
+- 조인 컬럼은 단순히 외래 키 컬럼만 추가해서 연관관계를 맺지만 조인 테이블을 사용하는 방식은 연관관계를 관리하는 조인 테이블을 추가하고 여기서 두 테이블의 외래 키를 가지고 연관관계를 관리한다.
+- 가장 큰 단점은 테이블을 하나 추가해야 한다는 점이다.
+  - 따라서 관리해야 하는 테이블이 늘어나고 회원과 사물함 두 테이블을 조인하려면 테이블까지 추가로 조인해야 한다.
+- 객체와 테이블을 매핑할 때 
+  - 조인 컬럼은 `@JoinColumn`으로 매핑
+  - 테이블은 `@JoinTable`로 매핑
+- 조인 테이블은 주로 N:N 관계를 1:N, N:1 관계로 풀어내기 위해 사용한다.
+  - 하지만 1:1, N:1, 1:N 관계에서도 사용한다.
+
+## 4-1. 일대일 조인 테이블
+
+- 일대일 관계를 만들려면 조인 테이블의 외래 키 컬럼에 각각에 총 2개의 유니크 제약조건을 걸어야 한다.
+
+```java
+@Entity
+public class Parent {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "parent_id")
+  private Long id;
+  
+  @OneToOne
+  @JoinTable(
+      name = "parent_child",
+      joinColumns = @JoinColumn(name = "parent_id"),
+      inverseJoinColumns = @JoinColumn(name = "child_id"))
+  private Child child;
+}
+
+@Entity
+public class Child  {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "child_id")
+  private Long id;
+  
+  // 양방향 매핑하려면 추가
+  @OneToOne(mappedBy = "child")
+  private Parent parent;
+}
+```
+
+- 부모 엔티티를 확인해보자.
+  - `@JoinTable` 어노테이션을 사용한 것을 볼 수 있다.
+- `@JoinTable`의 속성
+  - `name`: 매핑할 조인 테이블 이름 
+  - `joinColumns`: 현재 엔티티를 참조하는 외래 키
+  - `inverseJoinColumns`: 반대 방향 엔티티를 참조하는 외래 키
+
+## 4-2. 일대다 조인 테이블
+
+- 조인 테이블 중 N에 해당하는 테이블과 관련된 `child_id`에 유니크 제약 조건을 걸어야 한다.
+  - 사실 `child_id`는 기본 키므로 이미 유니크 제약 조건이 걸려 있을 것이다.
+
+```java
+@Entity
+public class Parent {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "parent_id")
+  private Long id;
+  
+  @OneToMany
+  @JoinTable(
+      name = "parent_child",
+      joinColumns = @JoinColumn(name = "parent_id"),
+      inverseJoinColumns = @JoinColumn(name = "child_id"))
+  private List<Child> child = new ArrayList<>();
+}
+
+@Entity
+public class Child  {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "child_id")
+  private Long id;
+  
+  // 양방향 매핑하려면 추가
+  @OneToOne(mappedBy = "child")
+  private Parent parent;
+}
+```
+
+## 4-3 다대일 조인 테이블
+
+```java
+@Entity
+public class Parent {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "parent_id")
+  private Long id;
+  
+  @OneToMany(mappedBy = "parent")
+  private List<Child> child = new ArrayList<>();
+}
+
+@Entity
+public class Child  {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "child_id")
+  private Long id;
+  
+  @ManyToOne(optional = false)
+  @JoinTable(
+          name = "parent_child",
+          joinColumns = @JoinColumn(name = "parent_id"),
+          inverseJoinColumns = @JoinColumn(name = "child_id"))
+  private Parent parent;
+}
+```
+
+## 4-4 다대다 조인 테이블
+
+- 다대다 관계를 만들려면 조인 테이블의 두 컬럼을 합해서 하나의 복합 유니크 제약 조건을 걸어야 한다.
+
+```java
+@Entity
+public class Parent {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "parent_id")
+  private Long id;
+  
+  @ManyToMany
+  @JoinTable(
+          name = "parent_child",
+          joinColumns = @JoinColumn(name = "parent_id"),
+          inverseJoinColumns = @JoinColumn(name = "child_id"))
+  private List<Child> child = new ArrayList<>();
+}
+
+@Entity
+public class Child  {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "child_id")
+  private Long id;
+}
+```
+
+> 참고
+> - 조인 테이블에 컬럼을 추가하면 @JoinTable 전략을 사용할 수 없다.
+> - 대신 새로운 엔티티를 만들어서 조인 테이블과 매핑하도록 하자.
+
+<br/>
+
+## 5. 엔티티 하나에 여러 테이블 매핑
+
+- 잘 사용하지는 않는 기능이다.
+- `@SecondaryTable`을 사용하면 한 엔티티에 여러 테이블을 매핑할 수 있다.
+
+```java
+@Entity
+@Table(name = "board")
+@SecondaryTable(
+    name = "board_detail",
+    pkJoinColums = @PrimaryKeyJoinColumn(name = "board_detail_id"))
+public class Board {
+  
+  @Id
+  @GeneratedValue
+  @Column(name = "board_id")
+  private Long id;
+  
+  @Column(table = "board_detail")
+  private String content;
+}
+```
+
+- `Board` 엔티티는 `@Table`을 사용해 `board` 테이블과 매핑했다.
+- 그리고 `@SecondaryTable`을 사용해 `board_detail` 테이블을 추가로 매핑했다.
+
+### `@SecondaryTable`의 속성
+
+- `@SecondaryTable.name`: 매핑할 다른 테이블의 이름. 예제에서는 테이블명을 `board_detail`로 지정했다.
+- `@SecondaryTable.pkJoinColumn`: 매핑할 다른 테이블의 기본 키 컬럼 속성. 예제에서는 기본 키 컬럼명을 `board_detail_id`로 지정했다.
+- 이렇게 매핑한 `board_detail`을 `@Column(table = "board_detail")`와 같이 사용해서 `board_detail` 테이블의 컬럼에 매핑했다.
 
 # 참고자료
 
