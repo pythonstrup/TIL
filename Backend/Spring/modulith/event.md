@@ -1,9 +1,43 @@
 # Spring Event
 
 - 스프링은 이벤트를 `Publish/Subcribe`하는 기능을 제공한다.
+  - 실제 구현은 옵저버 패턴으로 되어 있다고 합니다.
 - 이벤트는 어떻게 주고 받을 수 있을까?
   - 이벤트를 발행은 `ApplicationEventPublisher`가 담당한다. 이벤트를 발행하고 싶은 서비스에서 주입받아 `publishEvent()` 메소드로 이벤트를 발행하면 된다. 
   - 이벤트 구독은 `@EventListener`, `@TransactionalEventListener` 등의 어노테이션을 활용하거나 `ApplicationListener` 인터페이스를 구현하면 된다.
+
+## 옵저버 패턴
+
+- 옵저버 패턴의 구성 요소는 `Observable`, `Observer`로 나눌 수 있습니다.
+  - `Observable`은 의존 대상이 되는 피관찰자입니다. (Subject, Publisher, EventEmitter)
+  - `Observer`는 의존하고 있는 관찰자입니다. (Subscriber, Consumer, EventListener)
+  - `Observable`은 여러 `Observer`를 등록할 수 있습니다. (`Observable`:`Observer` = 1:N)
+  - `Observable`에서 이벤트가 발생하면, `Observable`은 자신에게 등록된 모든 `Observer`에게 이를 알립니다. (`notify`)
+
+```mermaid
+flowchart TD
+  Observable --> |notify| Observer1
+  Observer1 --> |registry| Observable
+  Observable --> |notify| Observer2
+  Observer2 --> |registry| Observable
+  Observable --> |notify| Observer3
+  Observer3 --> |registry| Observable
+```
+
+- 실제 비즈니스 로직의 예를 들어 설명해보도록 하겠습니다.
+  - 예를 들어, `OrderEvent`라는 `Observable`이 존재하고 그것을 관찰하는 `Observer`인 `PointService`, `CouponService`, `SupporterService` 등이 있다고 가정해봅시다.
+  - `Observer`들은 `OrderEvent`라는 이벤트를 `@EventListener` 등의 기능을 통해 등록해놓습니다. (`registry`)
+  - `OrderService`에서 주문을 진행하면 `OrderEvent`를 라는 이벤트가 발생합니다. (`notify`) 이제 `Observer`들은 이벤트를 수신해 각자의 로직을 수행합니다.
+
+```mermaid
+flowchart TD
+  E[OrderEvent] --> |notify| P[PointService]
+  P --> |registry| E
+  E --> |notify| C[CouponService]
+  C --> |registry| E
+  E --> |notify| S[SupporterService]
+  S --> |registry| E
+```
 
 <br/>
 
@@ -282,10 +316,29 @@ public class SupporterService {
 }
 ```
 
-### 이벤트의 방향
+### 이벤트 의존성
 
 - 만약 주문, 회원이 서포터즈 이벤트 발행자에게 의존하고 있다고 해보자.
-- 뭔가 부자연스럽지 않은가? 이벤트 소비자가 주체가 되어 각각의 서비스에게 이벤트를 뜯어내고 있는 형국이다.
+
+```mermaid
+flowchart TD
+  O[Order] --> |의존| E[SupporterEventPublisher]
+	E --> |이벤트 전달| Supporter
+```
+
+- 나중에 이벤트가 늘어나면 늘어날 수록 그만큼 이벤트 발행자를 의존해야 하기 때문에 의존성을 떼어내는 보람이 없다. (사실상 Service를 의존하는 것과 같다.)
+
+```mermaid
+flowchart TD
+  O[Order] --> |의존| E1[SupporterEventPulisher]
+  E1 --> |이벤트 전달| Supporter
+  O[Order] --> |의존| E2[CouponEventPulisher]
+  E2 --> |이벤트 전달| Coupon
+  O[Order] --> |의존| E3[PointEventPulisher]
+  E3 --> |이벤트 전달| Point
+```
+
+- 그리고 뭔가 부자연스럽지 않은가? 이벤트 소비자가 주체가 되어 각각의 서비스에게 이벤트를 뜯어내고 있는 형국이다.
 
 ```java
 @Service
@@ -335,3 +388,5 @@ public class SupporterService {
 - [공식 문서: Working with Application Event](https://docs.spring.io/spring-modulith/reference/events.html)
 - [[Spring] 스프링에서 이벤트의 발행과 구독 방법과 주의사항, 이벤트 사용의 장/단점과 사용 예시
   출처: https://mangkyu.tistory.com/292 [MangKyu's Diary:티스토리]](https://mangkyu.tistory.com/292)
+
+
