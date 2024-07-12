@@ -161,23 +161,220 @@ class MyTest {
 
 ### (i) 완전하고 간결하게 만들자.
 
+- `완전한 테스트 complete test`란 결과에 도달하기까지의 논리를 읽는 이가 이해하는 데 필요한 모든 정보를 본문에 담고 있는 테스트를 말한다.
+- `간결한 테스트 concise test`란 코드가 산만하지 않고 관련 없는 정보는 포함하지 않는 테스트다.
+
+```java
+// 불완전하고 산만한 테스트
+class MyTest {
+  @Test
+  public void shouldPerformAddition() {
+    Calculator calculator = new Calculator(new RoundingStrategy(), "unused", ENABLE_COSINE_FEATURE, 0.01, calculusEngine, false);
+    int result = calculator.calculate(newTestCalculation());
+    assertThat(result).isEqualTo(5); // 도대체 5는 무엇을 의미하는 걸까?
+  }
+}
+```
+
+- 아래 테스트는 본문에 테스트를 이해하는 데 필요한 정보를 모두 담고 있기 때문에 이해하기 쉽다.
+  - 그렇다고 눈을 어지럽히거나 관련 없는 정보는 담지 않아야 한다.
+
+```java
+// 완전하고 간결한 테스트
+class MyTest {
+  public void shouldPerformAddition() {
+    Calculator calculator = new Calculator();
+    int result = calculator.calculate(newCalculation(2, Operation.PLUS, 3));
+    assertThat(result).isEqualTo(5); // 딱봐도 2랑 3을 더해 5가 된다는 것을 알 수 있다.
+  }
+}
+```
+
 ### (ii) 메소드가 아니라 행위를 테스트하자.
 
-### (iii) 테스트에 논리를 넣지 말자.
+- 많은 엔지니어가 본능적으로 테스트의 구조를 대상 코드의 구조와 일치시키려고 한다.
+  - 제품 코드의 메소드 하나에 테스트 메소드 하나!
+- 하지만 시간이 갈수록 문제를 일으킬 것이다.
+  - 대상 메소드가 복잡해질수록 테스트도 함께 복잡해져서 실패해도 원인을 파악하기 어려워지기 때문이다.
+  - 메소드 하나의 전반을 검사하다 보면 자연스럽게 불명확한 테스트로 이어진다는 게 문제다.
+  - 메소드 하나가 몇가지 알을 하는 경우도 종종 있으며 까다롭고 예외적인 상황도 포함할 수 있기 때문이다.
 
-### (iv) 실패 메시지를 명확하게 작성하자
+```java
+class MyTest {
+  @Test
+  public void testDisplayTransactionResults() {
+    transactionProcessor.displayTransactionResults(
+        newUserWithBalance(
+            LOW_BALANCE_THRESHOLD.plus(dollars(2))),
+        new Transaction("물품", dollars(3)));
+    
+    assertThat(ui.getText()).contains("물품을(를) 구입하셨습니다.");
+    assertThat(ui.getText()).contains("잔고가 부족합니다.");
+  }
+}
+```
+
+- 테스트를 메소드별로 작성하지 않고 행위별로 작성하는 것이 훨씬 나은 방법이다.
+- 여기서 `행위 Behavior`란 특정 상태에서 특정한 일련의 입력을 받았을 때 시스템이 보장하는 반응을 뜻한다.
+  - 메소드와 행위는 다대다 관계이다.
+  - 사소하지 않은 메소드 대부분은 여러 가지 행위를 담당하며 어떤 행위는 여러 메소드를 연계해야 완성된다.
+- 행위 주도 테스트는 대체로 메소드 중심 테스트보다 명확하다.
+  1. 자연어에 가깝게 읽히기 때문에 힘들여 분석하지 않아도 자연스럽게 이해할 수 있다.
+  2. 테스트 각각이 더 좁은 범위를 검사하기 때문에 원인과 결과가 더 분명하게 드러난다.
+  3. 각 테스트가 짧고 서술적이어서 이미 검사한 기능이 무엇인지 더 쉽게 확인할 수 있다
+
+```java
+// 행위 주도 테스트
+class MyTest {
+  @Test
+  public void testDisplayTransactionResults_showsItemName() {
+    transactionProcessor.displayTransactionResults(new User(), new Transaction("물품"));
+    assertThat(ui.getText()).contains("물품을(를) 구입하셨습니다.");
+  }
+
+  @Test
+  public void testDisplayTransactionResults_showsLowBalanceWarning() {
+    transactionProcessor.displayTransactionResults(
+            newUserWithBalance(
+                    LOW_BALANCE_THRESHOLD.plus(dollars(2))),
+            new Transaction("물품", dollars(3)));
+    assertThat(ui.getText()).contains("잔고가 부족합니다.");
+  }
+}
+```
+
+### (iii) 테스트의 구조는 행위가 부각되도록 구성하자.
+
+- 모든 행위는 given / when / then 이라는 3요소로 구성됨을 기억하자.
+  - `given`: 시스템의 설정 정의
+  - `when`: 시스템이 수행할 작업 정의
+  - `then`: 결과를 검증
+
+```java
+class MyClass {
+  @Test
+  public void transferFundsShouldMoveMoneyBetweenAccounts() {
+    // Given: 두 개의 계좌. 각각의 잔고는 $150와 $20
+    Account account1 = newAccountWithBalance(usd(150));
+    Account account2 = newAccountWithBalance(usd(20));
+    
+    // When: 첫 번째 계좌에서 두 번째 계좌로 $100 이체
+    bank.tranferFunds(account1, account2, usd(100));
+    
+    // Then: 각 계좌 잔고에 이체 결과가 반영
+    assertThat(account1.getBalance()).isEqualTo(usd(50));
+    assertThat(account2.getBalance()).isEqualTo(usd(120));
+  }
+}
+```
+
+- 위의 패턴으로 작성된 테스트는 코드를 3단계 깊이로 점차 자세하게 파악할 수 있다.
+  1. 먼저 테스트 메소드의 이름을 보고 검사하려는 행위를 간략하게 알 수 있다.
+  2. 메소드 이름으로 충분하지 않다면 행위를 형식화해 설명한 given/when/then 주석을 읽는다.
+  3. 마지막으로 주석의 설명이 실제 코드로는 정확히 어떻게 표현됐는지 살펴볼 수 있다.
+- 이 패턴을 무너뜨리는 가장 큰 원흉은 대상 시스템을 호출하는 코드 사이사이에 추가되는 단정문이다.
+  - when 블록 중간에 단정문이 추가되면 단정한 것이 테스트의 중간 과정인지 최종 예상 결과인지 구분하기가 어려워진다.
+- when/then/and가 번갈아 가면서 단계별 검증을 할 수 있지만, 이런 코드를 만들 땐 여러 행위를 검사하는 실수를 범하지 않도록 주의해야 한다.
+  - 테스트 각각은 단 하나의 행위만 다뤄야 한다.
+  - 절대다수의 단위 테스트에는 when과 then 블록이 하나씩이면 충분하다.
+
+### (iv) 테스트 이름은 검사하는 행위에 어울리게 짓자.
+
+- 메소드 중심 테스트는 이름을 대체로 대상 메소드의 이름을 따서 짓는다.
+- **반면 행위 주도 테스트는 이름 짓기가 더 자유롭기 때문에 더 의미 있는 정보를 담을 수 있다.**
+  - 테스트의 이름은 매우 중요하다. 실패 보고서에 테스트 이름만 덩그러니 표시되는 경우도 많기 때문에 문제가 무엇인지 설명해줄 단서가 이름뿐일 수 있다.
+  - 또한 이름은 테스트의 의도를 표현하는 가장 간단한 방법이다.
+- 테스트의 이름은 검사하려는 행위를 요약해 보여줘야 한다.
+  - **시스템이 수행하는 동작과 예상 결과를 모두 담아야 좋은 이름이다.**
+  - 때로는 시스템의 상태나 사전 조건(환경) 같은 추가 정보까지 담기도 한다.
+- 중첩 기능을 사용하면 테스트 이름을 더 쉽게 지을 수도 있다.
+- 스프링의 경우 `@DisplayName`을 사용해 테스트 이름을 한글로 표기해 이해하기 쉽게 만드는 것이 방법이 될 수 있다.
+
+### (v) 테스트에 논리를 넣지 말자.
+
+- 테스트를 검증하는 테스트를 작성해봐야 할 것 같은 느낌이 든다면 무언가 잘못된 것이다!
+- 복잡성은 대체로 `논리 logic`라는 형태로 나타난다.
+  - 논리는 프로그래밍 언어에서 명령형 요소(연산자, 반복문, 조건문)를 이용해 표현한다.
+  - 논리가 포함된 코드 결과를 예측하려면 약간의 정신노동을 거쳐야 한다.
+  - 더욱이 테스트에 논리가 조금만 들어가도 추론하기가 어려워진다.
+
+### (vi) 실패 메시지를 명확하게 작성하자
+
+- 실전에서는  테스트 실패 보고서나 로그에 찍힌 메시지 한 줄만으로 문제의 원인을 찾아내야 할 때가 많다.
+- 작 작성된 실패 메시지라면 테스트의 이름과 거의 동일한 정보를 담고 있어야 한다.
+  - `원하는 결과`와 `실제 결과` 그리고 `이때 건네진 매개변수의 값`을 명확히 알려줘야 한다.
+  - 좋은 실패 메세지라면 기대한 상태와 실제 상태를 명확히 구분해주고 결과가 만들어진 맥락 정보도 더 제공해야 한다.
+- 좋은 라이브러리를 사용하면 실패 메시지를 쓸모 있게 작성하기 더 쉬워진다.
+- 단정문을 잘 사용하면 단정할 대상을 구분해주기 때문에 훨씬 좋은 실패 메시지를 만들 수 있다.
+  - 아래는 구글의 단정문 라이브러리 Truth의 사용 예시이다. 
+
+```java
+assertThat(colors.contains("orange")).isTrue(); // 이렇게 작성하기 보다는
+assertThat(colors).contains("orange"); // 맥락 정보를 담아주자! 
+```
 
 <br/>
 
 ## DRY가 아니라 DAMP
 
+- 테스트를 명확하고 잘 깨지지 않게 해주는 마지막 요인은 코드 공유라는 주제와 관련 있다.
+- 좋은 테스트는 안정적이고 대상 시스템의 행위가 변경되면 실패하도록 설계된다.
+  - 따라서 테스트 코드에서는 DRY가 주는 혜택이 그리 크지 않다.
+  - 오히려 테스트는 복잡해지면 손해가 막심하다.
+- DRY 대신 DAMP가 되도록 노력해야 한다. DAMP(Descriptive And Meaningful Phrase)는 서술적이고 의미 있는 문구를 뜻한다.
+- 단순하고 명료하게만 만들어준다면 테스트에서 다소의 중복은 괜찮다.
+
 ### (i) 공유 값
+
+- 필요한 값들을 테스트마다 일일 준비하려면 장황하고 귀찮기 때문에 엔지니어들이 상수를 정의해 공유하고 싶은 유혹에 빠진다.
+- 차라리 도우미 메소드를 만들어 데이터를 구성하자!
+- 도우미 메소드를 이용하면 불필요한 정보로 오염되거나 다른 테스트와 충돌할 염려 없이 정확히 필요한 값들만 생성해 사용할 수 있다.
 
 ### (ii) 공유 셋업
 
+- setup 메소드를 제대로만 활용하면 테스트들을 더 깔끔하고 명확하게 정리해준다.
+- 하지만 잘못 사용하면 중요한 세부 정보를 setup 메소드 속으로 숨겨버려서 테스트가 완벽해지지 못하게 막는다.
+- setup 메소드는 대상 객체와 협력 객체를 생성하는 데 매우 유용하다.
+  - 테스트 대다수가 객체를 생성하는 데 쓰인 인수들에 관심이 없고 테스트를 수행한 후에도 객체들의 상태가 전혀 변하지 않는다면 매우 유용하다.
+- 그런데 setup 메소드를 이요한 특정 값에 의존하는 테스트가 생겨나기 시작하면 악몽이 시작될 수 있다.
+  - 데이터가 필요하면 테스트 메소드 안에서 정의하고 저장하자!
+
 ### (iii) 공유 도우미 메소드와 공유 검증 메소드
 
+- 도우미 메소드를 단순히 데이터 생성 보조 목적으로 사용하면 좋지만 다른 용도로 사용하면 위험해질 수 있다.
+- 모든 테스트가 마지막에 도우미 메소드를 호출하는 극단적인 모습도 상상해볼 수 있다.
+  - 매우 위험한 습관이다. 이런 식으로는 테스트를 행위 주도적으로 만들기 어렵다.
+  - 테스트 각각의 의도를 추론해내기 어려워지기 때문이다.
+  - 또한 버그가 하나 발생하면 여러 테스트가 동시다발로 실패할 때가 많아, 살펴봐야 할 범위를 좁혀내기가 쉽지 않다.
+- 하지만 하나의 목적에 집중하는 `검증 메소드 validation method`는 여전히 유용하다. 
+  - 잘 만들어진 검증용 도우미 메소드는 여러 조건을 확인하는 게 아니라 입력에 대한 단 하나의 개념적 사실만 검증한다.
+  - 개념적으로 단순하지만 그 개념을 검사하는 로직이 복잡한 경우라면 특히 큰 도움이 된다.
+
+```java
+// 개념적으로 단순한 검증 로직
+class MyTest {
+  private void assertUserHasAccessToAccount(User user, Account account) {
+    for (long userId: account.getUsersWithAccess()) {
+      if (user.getId() == userId) {
+        return;
+      }
+    }
+    fail(user.getName() + " cannot access " + account.getName());
+  }
+}
+```
+
 ### (iv) 테스트 인프라 정의하기
+
+- 가끔은 다른 테스트 스위트와도 코드를 공유하면 유용할 때가 있다.
+  - 구글은 이런 종류의 코드를 `테스트 인프라 test infrastructure`라고 한다.
+  - 테스트 인프라는 주로 `통합 테스트`나 `종단간 테스트 end-to-end test`에서 빛을 발한다.
+- 테스트 인프라는 단일 테스트 스위트 안에서의 코드 공유보다 훨씬 신중하게 접근해야 한다.
+  - 많은 곳에서 호출되는 만큼 의존하는 코드가 많기 때문이다!
+  - 동작이 달라지면 다른 코드들이 깨지기 때문에 변경하기도 어렵다!
+- 테스트 인프라는 독립된 제품 대우를 해줘야 하며 마땅히 자신을 검사해줄 '자체 테스트들을 갖추고 있어야' 한다.
+- 물론 대부분의 테스트 인프라는 `JUnit`처럼 잘 알려진 서드파티 라이브러리 형태로 제공될 것이다.
+  - 이런 류의 라이브러리는 엄청나게 많기 때문에 가능하면 조기에 전사 표준 인프라를 정하는 것이 좋다.
 
 <br/>
 
