@@ -62,6 +62,7 @@ $ mvn package
 ## Build 시 발생했던 문제
 
 - zengine을 빌드할 때 아래와 같은 테스트 에러가 발생
+  - HeliumBundleFactoryTest의 testInstallNpm이 실패해버린다.
 
 ```shell
 [ERROR] Failures: 
@@ -77,3 +78,14 @@ $ mvn package
 [INFO] 
 ```
 
+- `eirslett`라는 라이브러리를 사용하는데 
+- 실제로 존재하지 않는 https://nodejs.org/dist/v6.9.1/node-v6.9.1-darwin-arm64.tar.gz를 다운로드받으려고 해서 에러가 발생하는 것이다.
+- https://nodejs.org/dist/v6.9.1/에 접속해보면 해당 파일이 없다는 것을 확인할 수 있다.
+- 해당 라이브러리의 이 에러에 대해 이슈도 달려있다. https://github.com/eirslett/frontend-maven-plugin/issues/952
+
+- 내가 가지고 있는 노드 버전
+
+```
+$ node -v                                                        ✔  336  22:56:24
+v14.21.3
+```
