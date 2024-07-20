@@ -95,6 +95,256 @@ public class JpaConfig {
 
 <br/>
 
+## 3. 프록시 심화 주제
+
+- 프록시는 원본 엔티티를 상속받아 만들어지므로 엔티티를 사용하는 클라이언트는 엔티티가 프록시인지 아니면 원본 엔티티인지 구분하지 않고 사용할 수 있다.
+
+### 3-1.영속성 컨텍스트와 프록시
+
+- 영속성 컨텍스트는 자신이 관리하는 영속 엔티티의 동일성을 보장한다.
+- 그렇다면 프록시로 조회한 엔티티의 동일성도 보장할까?
+
+```java
+Member refMember = em.getReference(Member.class, "member1");
+Member foundMember = em.find(Member.class, "member1");
+```
+
+- 결론적으로는 보장한다. 위의 경우 프록시 객체로 동일하다.
+- `find`로 찾을 때 영속성 컨텍스트가 원본이 아닌 프록시를 반환해주기 때문이다.
+- 반대로 하면 어떨까?
+
+```java
+Member foundMember = em.find(Member.class, "member1");
+Member refMember = em.getReference(Member.class, "member1");
+```
+
+- `find`로 원본 엔티티를 영속성 컨텍스트가 들고 있기 때문에 ref로 조회해도 프록시가 아닌 원본 엔티티를 반환받게 된다.
+
+### 3-2. 프록시 타입 비교
+
+- 프록시로 조회한 엔티티와 타입을 비교할 때는 `==` 비교 대신에 `instanceof`를 사용해야 한다.
+  - 프록시는 원본 엔티티를 상속받아 만들어지기 때문이다.
+
+### 3-3. 프록시 동등성 비교
+
+- 엔티티의 동등성을 비교하려면 `equals()` 메소드를 오버라이딩하고 비교하면 된다.
+- 그런데 프록시면 문제가 생길 수 있다. 아래 코드의 문제가 무엇일까?
+
+```java
+@Entity
+public class Member {
+  
+  @Id
+  private String name;
+  
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) return true;
+    if (obj == null) return false;
+    if (this.getClass() != obj.getClass()) return false; // 문제1
+    
+    Member member = (Member) obj;
+    // 문제2
+    if (name != null ? !name.equals(member.name): member.name != null) {
+      return false;
+    }
+    return true;
+  }
+}
+```
+
+1. `==` 비교는 `instanceof`로 바꿔줘야 한다.
+  - `if (!(obj instanceof Member)) return false;`
+2. 멤버 변수는 직접 접근하지 않고 getter를 통해 접근해야 한다.
+  - `if (name != null? !name.equals(member.getName()): member.getName() != null return false;`
+
+### 상속관계와 프록시
+
+- 프록시를 부모 타입으로 조회하면 문제가 발생한다.
+- 프록시를 부모 타입으로 조회하면 부모 타압을 기반으로 프록시가 생성된다. 
+
+```mermaid
+classDiagram
+  Book ..> Item
+  ItemProxy ..> Item
+```
+
+- 결과적으로 프록시를 `instanceof` 연산을 사용할 수 없게 되고 하위 타입으로 다운캐스팅 할 수 없다는 문제가 있다.
+
+#### JPQL로 대상 직접 조회
+
+- 가장 간단한 방법은 처음부터 자식 타입을 직접 조회하는 것이다.
+- 대신 다형성을 활용할 수 없다는 단점이 있다.
+
+#### 프록시 걷어내기
+
+- 아래와 같이 프록시를 걷어내고 원본엔티티를 받아오는 방법을 사용할 수도 있다.
+
+```java
+public class ProxyUtils {
+  
+  // 하이버네이트가 제공하는 프록시에서 원본 엔티티를 찾는 기능을 수행
+  public static <T> T unProxy(Object entity) {
+    if (entity instanceof HibernateProxy) {
+      entity =  ((HibernateProxy) entity)
+              .getHibernateLazyInitializer()
+              .getImplemetation();
+    }
+    return (T) entity;
+  }
+}
+```
+
+- 이 방법은 프록시에서 원본 엔티티를 직접 꺼내기 때문에 프록시와 원본 엔티티의 동일성 비교가 실패한다는 문제점이 있다.
+  - 영속성 컨텍스트에서는 프록시를 가지고 있을 것이고, 비즈니스 계층에서 사용하는 것은 원본 엔티티이기 때문!
+
+#### 기능을 위한 별도의 인터페이스 제공
+
+- 아래와 같이 인터페이스를 제공하고 각각의 클래스가 자신에 맞는 기능을 구현하는 것은 다형성을 활용하는 좋은 방법이다.
+- 이 방법을 사용할 때는 프록시의 특징 때문에 프록시의 대상이 되는 타입에 인터페이스를 적용해야 한다.
+
+```mermaid
+classDiagram
+  Item ..> TitleView
+  Book ..> Item
+  ItemProxy ..> Item
+  
+  class TitleView {
+    <<interface>>
+    +getTitle()
+  }
+```
+
+#### 비지터 패턴 사용
+
+```mermaid
+classDiagram
+  PrintVisitor ..> Visitor
+  TitleVisitor ..> Visitor
+  Client --> Visitor
+  Client --> Item
+  Item <-- Book 
+  Item <-- Movie
+  Item <-- Album
+  
+  class Visitor {
+    <<interface>>
+    +visit(Book book)
+    +visit(Movie movie)
+    +visit(Album album)
+  }
+  class PrintVisitor {
+    +visit(Book book)
+    +visit(Movie movie)
+    +visit(Album album)
+  }
+  class TitleVisitor {
+    title: string
+    +visit(Book book)
+    +visit(Movie movie)
+    +visit(Album album)
+  }
+  class Item {
+    +accept(Visitor visitor)
+  }
+  class Book {
+    +accept(Visitor visitor)
+  }
+  class Movie {
+    +accept(Visitor visitor)
+  }
+  class Album {
+    +accept(Visitor visitor)
+  }
+```
+
+```java
+public interface Visitor {
+  void visit(Book book);
+  void visit(Movie movie);
+  void visit(Album album);
+}
+```
+
+```java
+public class PrintVisitor implements Visitor {
+  
+  @Override
+  public void visit(Book book) {...}
+
+  @Override
+  public void visit(Album album) {...}
+
+  @Override
+  public void visit(Movie movie) {...}
+}
+
+public class TitleVisitor implements Visitor {
+
+  private String title;
+  
+  public String getTitle() {
+    return title;
+  }
+  
+  @Override
+  public void visit(Book book) {...}
+
+  @Override
+  public void visit(Album album) {...}
+
+  @Override
+  public void visit(Movie movie) {...}
+}
+```
+
+```java
+@Entity
+@Inheritance(strategy = IngeritanceType.SINGLE_TABLE)
+@DiscirminatorColumn(name = "DTYPE")
+public abstract class Item {
+  @Id
+  @GeneratedValue
+  private Long id;
+  
+  private String name;
+  
+  public abstract void accept(Visitor visitor);
+}
+
+@Entity
+@DiscriminatorValue("B")
+public class Book extends Item {
+  private String author;
+  private String isbn;
+  
+  @Override
+  public void accept(Visitor visitor) {
+    visitor.visit(this);
+  }
+}
+```
+
+- 자식 클래스들은 부모에 정의한 `accept(visitor)` 메소드를 구현한다.
+  - 구현 내용은 단순히 파라미터로 넘어온 `Visitor`의  `visit(this)`를 호출하면서 자신을 파라미터로 넘기는 것이 전부다.
+
+#### 비지터 패턴과 확장성
+
+- 비지터 패턴은 새로운 기능이 필요할 때 새로운 `Visitor`만 추가하면 된다.
+- 따라서 기존 코드의 구조를 변경하지 않고 기능을 추가할 수 있다는 장점이 있다.
+- 비지터 패턴의 장점을 정리하자면 아래와 같다.
+
+1. 프록시에 대한 걱정 없이 안전하게 원본 엔티티에 접근할 수 있다.
+2. `instanceof`와 타입캐스팅 없이 코드를 구현할 수 있다.
+3. 알고리즘과 객체 구조를 분리해서 구조를 수정하지 않고 새로운 동작을 추가할 수 있다.
+
+- 단점은 아래와 같다.
+
+1. 너무 복자하고 더플 디스패치를 사용하기 때문에 이해하기 어렵다.
+2. 객체 구조가 변경되면 모든 `Visitor`를 수정해야 한다.
+
+<br/>
+
 # 참고자료
 
 - 자바 ORM 표준 JPA 프로그래밍, 김영한 지음
