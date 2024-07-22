@@ -175,6 +175,77 @@ public class SequenceCondition implements DiscountCondition {
 
 <br/>
 
+## 3. 원칙의 함정
+
+- 디미터 법칙과 묻지 말고 시켜라 스타일은 객체의 퍼블릭 인터페이스를 깔끔하고 유연하게 만들 수 있는 훌륭한 설계 원칙이지만 절대적인 법칙은 아니다.
+  - 소프트웨어 설계에 법칙이란 존재하지 않는다.
+  - 법칙에는 예외가 없지만 예외가 넘쳐난다.
+- 설계는 트레이드오프의 산물이라는 것을 잊지 말자.
+  - 초보자는 원칙을 맹목적으로 추종한다. 심지어 원칙들이 서로 충졸하는 경우에도 정당성을 부여하고 억지로 끼워 맞추려고 노력한다.
+  - 결과적으로 설계는 일관성을 잃어버리고 코드는 무질서 속으로...
+- 원칙이 현재 상황에 부적합하다고 판단되면 과감하게 원칙을 무시하자.
+  - 아는 것보다 중요한 것은 언제 원칙이 유용하고 언제 유용하지 않은지를 판단할 수 있는 능력을 기르는 것이다.
+
+### 디미터 법칙은 하나의 도트(.)를 강제하는 규칙이 아니다.
+
+- 디미터 법칙은 결합도와 관련된 것이며, 결합도가 문제가 되는 것은 객체의 내부 구조가 외부로 노출되는 경우로 한정한다.
+  - 하나 이상의 도트를 사용하는 모든 케이스가 디미터 위반이란 것은 아니라는 말이다.
+- 디미터 법칙을 어겼는지 헷갈린다면 다음과 같이 생각하자.
+  - `과연 여러 개의 도트를 사용한 코드가 객체의 내부 구조를 노출하고 있는가?`
+
+### 결합도와 응집도
+
+- 일반적으로 어떤 객체의 상태를 물어본 후 반환된 상태를 기반으로 결정을 내리고 그 결정에 따라 객체의 상태를 변경하는 코드는 `묻지 말고 시켜라` 스타일로 변경해야 한다.
+- 하지만 `묻지 말고 시켜라`와 `디미터 법칙`을 준수하는 것이 항상 긍정적인 결과로만 귀결되진 않는다.
+  - 모든 상황에서 맹목적으로 위임 메소드를 추가하면 같은 퍼블릭 인터페이스 안에 어울리지 않는 오퍼레이션들이 공존하게 된다.
+  - 결과적으로 객체는 상관 없는 책임들을 한꺼번에 떠안게 되기 때문에 응집도가 낮아질 수 있다.
+- 클래스는 하나의 변경 원인만을 가져야 한다.
+  - 서로 상관없는 책임들이 함께 뭉쳐있는 클래스는 응집도가 낮으며 작은 변경으로도 쉽게 무너질 수 있다.
+  - 따라서 `묻지 말고 시켜라`와 `디미터 법칙` 원칙을 무작정 따르면 애플리케이션은 응집도가 낮은 객체로 넘쳐날 것이다.
+
+```java
+public class PeriodCondition implements DisoucntCondition {
+  public boolean isSatisfiedBy(Screening screening) {
+    return screening.getStartTime().getDayOfWeek().equals(dayOfWeek)
+            && startTime.compareTo(screening.getStartTime().toLocalTime) <= 0
+            && endTime.compareTo(screening.getStartTime.toLocalTime()) >= 0;
+  }
+}
+```
+
+- 위 코드는 얼핏보기에 `Screening`의 내부 상태를 가져와 사용하기 때문에 캡슐화를 위반한 것처럼 보일 수 있다.
+- 따라서 할인 여부를 판단하는 로직을 `Screening`의 `isDiscountable` 메소드로 옮기고 `PeriodCondition`이 이 메소드를 호출하도록 변경한다면 `묻지 말고 시켜라` 스타일을 준수하는 퍼블릭 인터페이스를 얻을 수 있다고 생각할 것이다.
+
+```java
+public class Screening {
+  public boolean isDiscountable(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {
+    return whenScreened.getDayOfWeek().equals(dayOfWeek)
+            && startTime.compareTo(whenScreened.toLocalTime) <= 0
+            && endTime.compareTo(whenScreened.toLocalTime()) >= 0;
+  }
+}
+
+public class PeriodCondition implements DiscountCondition {
+  public boolean isSatisfiedBy(Screening screening) {
+    return screening.isDiscountable(dayOfWeek, startTime, endTime);
+  }
+}
+```
+
+- 하지만 이렇게 하면 `Screening`이 기간에 따른 할인 조건을 판단하는 책임을 떠안게 된다.
+  - 이것이 과연 `Screening`이 담당해야하는 본질적인 책임인가???
+  - `Screening`의 본질적인 책임은 영화를 예매하는 것이다.
+- 게다가 `Screening`은 `PeriodCondtion`의 인스턴스 변수를 인자로 받기 때문에 `PeriodCondtion`의 인스턴스 변수 목록이 변경될 경우에도 영향을 받게 된다.
+  - `Screening`와 `PeriodCondtion`의 결합도는 높다고 볼 수 있다.
+  - 따라서 `Screening`의 캡슐화를 향상시키는 것보다 `Screening`의 응집도를 높이고 `Screening`과 `PeriodCondtion` 사이의 결합도를 낮추는 것이 전체적인 관점에서 더 좋은 방법이다.
+- 가끔씩 묻는 것 외에 다른 방법이 존재하지 않는 경우도 존재한다.
+  - 로버트 마틴은 "클린 코드"에서 디미터 법칙의 위반 여부는 묻는 대상이 객체인지, 자료 구조인지에 달려있다고 설명한다.
+  - 객체는 내부 구조를 숨겨야 하므로 디미터 법칙을 따르는 것이 좋지만 자료 구조라면 당연히 내부를 노출해야 하므로 디미터 법칙을 적용할 필요가 없다.
+- 원칙을 맹신하지 마라. 원칙이 적절한 상황과 부적절한 상황을 판단할 수 있는 안목을 길러라. 설계는 트레이드오프의 산물이다.
+
+
+<br/>
+
 # 참고자료
 
 - 오브젝트, 조영호 지음
