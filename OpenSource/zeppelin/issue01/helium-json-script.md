@@ -55,7 +55,6 @@ const pomUri = ver.pomUri.replace('http', 'https')
 ### 이슈 2. artifactId가 zeppelin-interpreter인 값만 가져오는 것이 맞는가?
 
 - helium.json에는 maven의 여러 의존성을 가지고 있는데 4가지 값만 가져옴
-  - 멘토님한테 질문
 
 ```shell
 {
@@ -178,6 +177,12 @@ const pomUri = ver.pomUri.replace('http', 'https')
 
 - npm-registry로 대체해보자.
 
-# createHelium
+
+# 중간 점검
+
+### 멘토님 질문
+
+1. https://github.com/apache/zeppelin/blob/master/conf/interpreter-list 링크의 모든 의존성을 가져올 수 있으면 됨.
+2. helium.json을 굳이 가져와서 업데이트하는 방식이 아니라 새로운 파일을 구성하는 방식으로 해야함!
 
 
