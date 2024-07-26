@@ -52,8 +52,132 @@ More information at https://links.sonatype.com/central/501-https-required
 const pomUri = ver.pomUri.replace('http', 'https')
 ```
 
+### 이슈 2. artifactId가 zeppelin-interpreter인 값만 가져오는 것이 맞는가?
+
+- helium.json에는 maven의 여러 의존성을 가지고 있는데 4가지 값만 가져옴
+  - 멘토님한테 질문
+
+```shell
+{
+  'zeppelin-jupyter-interpreter': {
+    latest: {
+      type: 'INTERPRETER',
+      name: 'zeppelin-jupyter-interpreter',
+      version: '0.11.1',
+      published: '2024-03-29T15:27:07+09:00',
+      artifact: 'zeppelin-jupyter-interpreter@0.11.1',
+      description: 'Zeppelin: Jupyter Interpreter',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-jupyter-interpreter'
+    },
+    '0.11.0': {
+      type: 'INTERPRETER',
+      name: 'zeppelin-jupyter-interpreter',
+      version: '0.11.0',
+      published: '2024-02-16T21:23:35+09:00',
+      artifact: 'zeppelin-jupyter-interpreter@0.11.0',
+      description: 'Zeppelin: Jupyter Interpreter',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-jupyter-interpreter'
+    }
+  }
+}
+{
+  'zeppelin-zengine': {
+    latest: {
+      type: 'INTERPRETER',
+      name: 'zeppelin-zengine',
+      version: '0.11.1',
+      published: '2024-03-29T15:29:09+09:00',
+      artifact: 'zeppelin-zengine@0.11.1',
+      description: 'Zeppelin Zengine',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-zengine'
+    },
+    '0.11.0': {
+      type: 'INTERPRETER',
+      name: 'zeppelin-zengine',
+      version: '0.11.0',
+      published: '2024-02-16T21:26:44+09:00',
+      artifact: 'zeppelin-zengine@0.11.0',
+      description: 'Zeppelin Zengine',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-zengine'
+    }
+  }
+}
+{
+  'zeppelin-interpreter-parent': {
+    latest: {
+      type: 'INTERPRETER',
+      name: 'zeppelin-interpreter-parent',
+      version: '0.11.1',
+      published: '2024-03-29T15:25:35+09:00',
+      artifact: 'zeppelin-interpreter-parent@0.11.1',
+      description: 'Zeppelin: Interpreter Parent',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-interpreter-parent'
+    },
+    '0.11.0': {
+      type: 'INTERPRETER',
+      name: 'zeppelin-interpreter-parent',
+      version: '0.11.0',
+      published: '2024-02-16T21:21:32+09:00',
+      artifact: 'zeppelin-interpreter-parent@0.11.0',
+      description: 'Zeppelin: Interpreter Parent',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-interpreter-parent'
+    }
+  }
+}
+{
+  'zeppelin-cassandra': {
+    latest: {
+      type: 'INTERPRETER',
+      name: 'zeppelin-cassandra',
+      version: '0.11.1',
+      published: '2024-03-29T15:22:26+09:00',
+      artifact: 'zeppelin-cassandra@0.11.1',
+      description: 'Zeppelin cassandra support',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-cassandra'
+    },
+    '0.11.0': {
+      type: 'INTERPRETER',
+      name: 'zeppelin-cassandra',
+      version: '0.11.0',
+      published: '2024-02-16T21:17:47+09:00',
+      artifact: 'zeppelin-cassandra@0.11.0',
+      description: 'Zeppelin cassandra support',
+      license: 'Apache-2.0',
+      icon: '<i class="fa fa-rocket"></i>',
+      groupId: 'org.apache.zeppelin',
+      artifactId: 'zeppelin-cassandra'
+    }
+  }
+}
+```
+
 # fetchHelium
 
 ### 이슈 1. `npm-pkg-searchby-dependency` deprecated
 
 - npm-registry로 대체해보자.
+
+# createHelium
+
+
