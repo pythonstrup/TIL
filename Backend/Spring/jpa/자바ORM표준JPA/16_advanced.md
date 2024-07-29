@@ -345,6 +345,235 @@ public class Book extends Item {
 
 <br/>
 
+## 4. 성능 최적화
+
+### 4-1. N+1 문제
+
+#### 즉시 로딩
+
+```java
+@Entity
+public class Member {
+  
+  @Id
+  @GeneratedValue
+  private Long id;
+  
+  @OneToMany(mappedBy = "member", fetch = FetchType.EAGER)
+  private  List<Order> orders = new ArrayList<Order>();
+}
+```
+
+- `em.find()` 메소드로 조회하면 즉시 로딩으로 설정한 정보도 함께 조회하기 때문에 N+1 문제가 발생하지 않는다
+- 하지만 아래와 같이 JPQL이 들어가는 순간 `FetchType.EAGER`로 설정해도 N+1 문제가 발생한다.
+
+```java
+List<Member> members =
+      em.createQuery("select m from Member m", Member.class)
+        .getResultList();
+```
+
+- member 데이터가 5개 들어가 있고 각각 주문이 하나씩 들어가 있다고 가정해보자.
+- 이제 쿼리가 실행되면 member의 수만큼 아래와 같이 연관된 주문을 조회하는 쿼리를 하나씩 실행해버린다.
+
+```sql
+select * from member;
+select * from orders where member_id = 1;
+select * from orders where member_id = 2;
+select * from orders where member_id = 3;
+select * from orders where member_id = 4;
+select * from orders where member_id = 5;
+```
+
+#### 지연 로딩
+
+- 지연 로딩 역시 N+1 문제가 발생한다.
+- 객체 그래프를 나중에 탐색하거나 연관된 컬렉션을 반복문을 통해 꺼내게 되면 초기화하는 수만큼 SQL이 실행되어 N+1 문제가 발생해버린다.
+
+#### 페치 조인
+
+- 페치 조인을 사용하면 N+1 문제를 방지할 수 있다.
+
+```jpaql
+select m from Member m join fetch m.orders
+```
+
+- 위 JPQL은 아래 쿼리로 실행된다.
+
+```sql
+select m.*, o.* from member m
+    inner join orders o on m.id=o.member_id;
+```
+
+#### 하이버네이트 @BatchSize
+
+- 하이버네이트가 제공하는 `org.hibernate.annotations.BatchSize` 어노테이션을 사용해 N+1 문제를 해결할 수 있다.
+- 연관된 엔티티를 조회할 때 지정한 size만큼 SQL의 IN절을 사용해서 조회한다.
+  - 만약 조회한 회원이 10명인데 size=5로 지정하면 2번의 SQL만 추가로 실행된다.
+
+```java
+@Entity
+public class Member {
+  
+  @BatchSize(size = 5)
+  @OneToMany(mappedBy = "member", fetch = FetchType.EAGER)
+  private List<Order> orders = new ArrayList<Order>();
+}
+```
+
+- 지연 로딩으로 설정하면 지연 로딩된 엔티티를 최초 사용하는 시점에 다음 SQL을 실행해서 5건의 데이터를 미리 로딩해둔다.
+- 그리고 6번째 데이터를 사용하면 다음 SQL을 추가로 실행한다.
+
+```sql
+select * from orders
+    where member_id in (?, ?, ?, ?, ?);
+```
+
+> 참고
+> - `hibernate.default_batch_fetch_size` 속성을 사용하면 애플리케이션 전체에 기본으로 `@BatchSize`를 적용할 수 있다.
+
+```yaml
+spring:
+  jpa:
+    properties:
+      hibernate.default_batch_fetch_size: 1000
+```
+
+#### 하이버네이트 @Fetch(FetchMode.SUBSELECT)
+
+- 하이버네이트가 제공하는 `org.hibernate.annotations.Fetch` 어노테이션에 `FetchMode`를 `SUBSELECT`로 사용하면 연관된 데이터를 조회할 때 서브 쿼리를 사용해 N+1 문제를 해결한다.
+
+```java
+@Entity
+public class Member {
+  ...
+  
+  @Fetch(FetchMode.SUBSELECT)
+  @OneToMany(mappedBy = "member", fetch = FetchType.EAGER)
+  private List<Order> orders = new ArrayList<>();
+}
+```
+
+- JPQL을 실행해보면
+
+```jpaql
+select m from Member m where m.id > 10;
+```
+
+- 아래와 같이 SQL이 서브 쿼리로 실행된다.
+  - 즉시 로딩으로 설정하면 조회 시점에
+  - 지연 로딩으로 설정하면 엔티티를 사용하는 시점에
+
+```sql
+select o from orders o
+    where o.member_id in (
+        select m.id from member m where m.id > 10);
+```
+
+#### 정리
+
+- 가장 추천하는 방법은 지연 로딩은만 사용하는 것
+
+### 4-2. 읽기 전용 쿼리의 성능 최적화
+
+- 엔티티가 영속성 컨텍스트에 관리되면 1차 캐시부터 변경 감지까지 얻을 수 있는 혜택이 많다.
+- 하지만 영속성 컨텍스트는 변경 감지를 위해 스냅샷 인스턴스를 보관하므로 더 많은 메모리를 사용해야 한다는 단점이 있다.
+- 읽기 전용으로 엔티티를 조회하면 메모리 사용량을 최적화할 수 있다.
+
+#### 스칼라 타입으로 조회
+
+- 영속성 컨텍스트에서는 엔티티만 관리한다.
+- 프로젝션으로 조회하면 영속성 컨텍스트에서 관리하지 않는다.
+
+#### 읽기 전용 쿼리 힌트 사용
+
+- `org.hibernate.readOnly`라는 하이버네이트 전용 힌트를 사용할 수 있다.
+  - 이렇게 조회하면 영속성 컨텍스트는 스냅샷을 보관하지 않는다.
+
+```java
+TypedQuery<Order> query = em.createQuery("select o from Order o", Order.class);
+query.setHint("org.hibernate.readOnly", true);
+```
+
+#### 읽기 전용 트랜잭션 사용
+
+- 아래와 같이 `@Transactional` 어노테이션을 사용해 읽기 전용 모드로 설정할 수 있다.
+
+```java
+@Service
+@Transactional(readOnly = true)
+public class OrderService {...}
+```
+
+- 이렇게 하면 강제로 플러시를 호출하지 않는 한 플러시가 일어나지 않는다.
+- 따라서 트랜잭션을 커밋해도 영속성 컨텍스트를 플러시하지 않는다.
+  - 플러시할 때 일어나는 스냅샷 비교와 같은 무거운 로직들을 수행하지 않으므로 성능이 향상된다.
+  - 물론 트랜잭션이 시작되므로 트랜잭션 시작, 로직 수행, 트랜잭션 커밋의 과정은 이뤄진다.
+
+#### 트랜잭션 밖에서 읽기
+
+- 트랜잭션 없이 엔티티를 조회하는 방법이다. 조회가 목적일 때만 사용해야 한다.
+
+```java
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+```
+
+#### 정리
+
+- 가장 효과적인 방법인 `읽기 전용 트랜잭션`과 `읽기 전용 쿼리 힌트`를 동시에 사용하는 것이다.
+  - `읽기 전용 트랜잭션`: 플러시가 일어나지 않게 함
+  - `읽기 전용 쿼리 힌트`: 메모리 최적화
+
+### 4-3. 배치 처리
+
+#### JPA 등록 배치
+
+- 수천에서 수만 건 이상의 엔티티를 한 번에 등록할 때 주의할 점은 영속성 컨텍스트에 엔티티가 계속 쌓이지 않도록 일정 단위마다 영속 컨텍스트의 엔티티를 데이터베이스에 플러시하고 초기화해야 한다.
+  - 만약 영속성 컨텍스트에 너무 많은 엔티티가 저장되면 메모리 부족 오류가 발생할 수 있다.
+
+#### JPA 페이징 배치 처리
+
+- 반복문을 통해 페이징 하는 방식이다.
+- 각 페이징을 조회하고 `em.flush()`와 `em.clear()`를 통해 플러시와 초기화를 실행한다.
+- 그리고 다음 반복문에서 동일하게 로직을 실행한다.
+
+#### 하이버네이트 scroll 사용
+
+- 하이버네이트는 `scroll`이라는 이름으로 JDBC 커서를 지원한다.
+
+#### 하이버네이트 무상태 세션 사용
+
+- 무상태 세션은 영속성 컨텍스트가 없다.
+- 대신 `update()` 메소드를 직접 호출해야 한다.
+
+### 4-4. SQL 쿼리 힌트 사용
+
+- SQL 힌트는 하이버네이트 쿼리가 제공하는 `addQueryHint()` 메소드를 사용한다.
+
+```java
+Session session = em.unwrap(Session.class);
+
+List<Member> members = session.createQuery("select m from Member m")
+        .addQueryHint("FULL (MEMBER)")
+        .list();
+```
+
+### 4-5 트랜잭션을 지원하는 쓰기 지연과 성능 최적화
+
+#### 트랜잭션을 지원하는 쓰기 지연과 JDBC 배치
+
+- `hibernate.jdbc.batch_size`를 통해 배치 사이즈를 설정할 수 있다. 
+  - 데이터 등록, 수정, 삭제할 때 SQL 쿼리를 얼마나 모아서 실행할 것인가
+
+> IDENTITY 식별자 생성 전략은 엔티티를 데이터베이스에 저장해야 식별자를 구할 수 있으므로 `em.persist()`를 호출하는 즉시 INSER SQL이 데이터베이스에 전달된다. 따라서 쓰기 지연을 활용한 성능 최적화를 할 수 없다.
+
+#### 트랜잭션을 지원하는 쓰기 지연과 애플리케이션 확장성
+
+- JPA는 커밋을 해야 플러시를 호출하고 데이터베이스에 수정 쿼리르 보낸다.
+- 쿼리를 보낵 바로 트랜잭션을 커밋하므로 결과적으로 데이터베이스에 락이 걸리는 시간을 최소화한다.
+
+<br/>
+
 # 참고자료
 
 - 자바 ORM 표준 JPA 프로그래밍, 김영한 지음
