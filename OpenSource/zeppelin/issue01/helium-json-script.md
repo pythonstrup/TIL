@@ -175,7 +175,13 @@ const pomUri = ver.pomUri.replace('http', 'https')
 
 ### 이슈 1. `npm-pkg-searchby-dependency` deprecated
 
-- npm-registry로 대체해보자.
+- API가 deprecated되었다.
+- 아래의 직접 API를 호출하는 방법으로 수정
+
+```
+https://api.npms.io/v2/search?q=zeppelin-vis
+https://api.npms.io/v2/search?q=zeppelin-spell
+```
 
 
 # 중간 점검
@@ -186,3 +192,54 @@ const pomUri = ver.pomUri.replace('http', 'https')
 2. helium.json을 굳이 가져와서 업데이트하는 방식이 아니라 새로운 파일을 구성하는 방식으로 해야함!
 
 
+# helium.json 테스트
+
+```xml
+<property>
+  <name>zeppelin.helium.registry</name>
+  <value>helium,file://${ZEPPELIN_HOME}/conf/my-helium.json</value>
+  <description>Location of external Helium Registry</description>
+</property>
+```
+
+### helium.json이 배열이어서 에러가 발생한다.
+
+- `enabled`, `packageConfig`와 `bundleDisplayOrder` 키 값으로 가지고 있는 객체가 필요하다.
+- 현재 그냥 `helium.json`을 받아오면 에러가 발생한다. 
+- 알고보니 `conf/helium.json`과 `zeppelinServer`의 `resources`에서 사용하는 `helium.json`의 형태가 다른듯 하다.
+
+### helium 설치 안 되는 이슈
+
+- helium.json 작업 진행 중에 NPM 의존성이 설치되지 않는 이슈를 일요일에 공유해드렸었는데요. 아래와 같은 과정을 거쳐 설치에 성공했습니.
+- helium의 node version과 개발 환경인 Mac OS(M1)과 호환이 되지 않아 발생한 것으로 보입니다. 
+
+```java
+private static final String NODE_VERSION = "v6.9.1";
+private static final String NPM_VERSION = "3.10.8";
+private static final String YARN_VERSION = "v0.21.3";
+```
+
+- helium에서 사용하는 라이브러리를 확인해보니 현재 사용하고 있는 OS를 파악해서 자동으로 설치할 노드의 url을 구성하고 있었습니다.
+- `https://nodejs.org/dist/v6.9.1/node-v6.9.1-darwin-arm64.tar.gz`라는 경로로 접근하려고 하는데 실제로 해당 경로에 파일이 존재하지 않습니다.
+   - 해당 버전에서는 darwin-arm64를 지원하지 않는 것 같습니다.
+- 따라서 아래와 같이 버전을 올려봤습니다.
+
+```java
+private static final String NODE_VERSION = "v16.16.0";
+private static final String NPM_VERSION = "8.11.0";
+private static final String YARN_VERSION = "v1.22.0";
+```
+
+- 버전을 올리니 다른 예외가 발생했습니다. 
+  - `HeliumBundleFactory.java`에서 result가 null 값으로 반환되어 에러가 발생하길래 일단 실행되도록 예외처리를 해줬습니다.
+- 조치를 취한 후 설치에 성공했습니다.
+
+
+- `HeliumBundleFactory.java` 409번째 줄의 코드를 아래와 같이 수정해봤습니다.
+
+```java
+if (result != null && result.errors.length > 0) {
+  FileUtils.deleteQuietly(heliumBundle);
+  throw new IOException(result.errors[0]);
+}
+```
