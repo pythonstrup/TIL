@@ -109,6 +109,81 @@ public ItemWriter<Order> orderWriter() {
 }
 ```
 
+# 다른 방법
+
+## 1. JobExecution에 바로 저장해버리기
+
+- 간단하고 실용적인 방법이다.
+- 하지만 이 방식은 위에서 간단히 얘기했다시피 추천하지 않는 방식이다. 그 이유는 아래와 같다.
+
+1. Step 실행 중 JobExecutionContext에 값을 저장하더라도 Step이 실패하는 경우 데이터가 유실될 수 있다.
+2. 이 방법은 Step이 JobExecutionContext에 강결합하게 된다. 따라서 다른 Job에서 Step 구현체를 재사용하기 어려워진다.
+
+### 코드 예시
+
+- 간단하다. 
+- 데이터를 저장할 Step에서 JobExecutionContext에 데이터를 저장하고 다음 스텝에서 JobExecutionContext에서 데이터를 가져와 사용하면 된다.
+
+```java
+@Bean
+public Step memberStep() {
+  return stepBuilderFactory.get("memberStep")
+    .tasklet((contribution, chunkContext) -> {
+      StepContext stepContext = chunkContext.getStepContext();
+      JobExecution jobExecution = stepContext.getStepExecution().getJobExecution();
+      Member member = memberService.getMember();
+      jobExecution.getExecutionContext().put("key", member);  
+      return RepeatStatus.FINISHED;
+    })
+    .build();
+}
+
+@Bean
+public Step orderStep() {
+  return stepBuilderFactory.get("orderStep")
+      .tasklet((contribution, chunkContext) -> {
+        StepContext stepContext = chunkContext.getStepContext();
+        JobExecution jobExecution = stepContext.getStepExecution().getJobExecution();
+        Member member = (Member) jobExecution.getExecutionContext().getString("dataKey");
+        
+        ...
+        
+        return RepeatStatus.FINISHED;
+      })
+      .build();
+}
+```
+
+## 2. Singleton Bean 사용하기
+
+- Step 간에 데이터를 공유할 때 ExecutionContext를 사용하면 발생하는 치명적인 문제가 하나있다. 
+- 바로 ExecutionContext에 저장할 객체는 직렬화된다는 것이다. 
+- 이게 왜 치명적인 문제냐? ExecutionContext에 데이터를 저장하면서 json string 형태로 변환하는데 이 비용이 생각보다 크다고 한다.
+- ExecutionContext에 담을 객체가 크지 않다면 별로 문제가 되지 않지만 크기가 너무 크다면 성능 이슈가 발생할 수 있다. 
+- 이 때 사용할 수 있는 것이 스레드 세이프한 자료구조를 가진 Singleton Bean이다.
+
+### 코드 예시
+
+```java
+@Component
+public class SharedData<T> {
+
+  private final Map<String, T> values = new ConcurrentHashMap<>();
+
+  public void putData(String key, T data) {
+    values.put(key, data);
+  }
+
+  public T getData (String key) {
+    return values.get(key);
+  }
+
+  public int getSize () {
+    return values.size();
+  }
+}
+```
+
 
 # 참고자료
 
