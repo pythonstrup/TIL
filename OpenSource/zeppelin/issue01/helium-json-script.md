@@ -243,3 +243,68 @@ if (result != null && result.errors.length > 0) {
   throw new IOException(result.errors[0]);
 }
 ```
+
+### HeliumBundleFactory 버전 올리기
+
+- 아래는 설치 결과값입니다. `\n`은 실제 줄바꿈으로 대체했습니다.
+
+```shell
+"Running 'yarn run bundle --registry=https://registry.npmjs.org/' in
+./local-repo/helium-bundle/bundles/sogou-map-vis-linkid
+yarn run v1.22.0
+$ webpack --display-error-details --json --registry=https://registry.npmjs.org/
+{
+  "errors": [],
+  "warnings": [],
+  "version": "1.15.0"
+  ....
+```
+
+- 옵션이 `--json`으로 끝나지 않습니다.
+- 그래서 `String.endsWith()`를 `String.contains()`로 변경했습니다.
+  - 그러면 json이 잘 읽힙니다.
+
+```java
+if (!webpackRunDetected) {
+  String trimed = line.trim();
+  if (trimed.contains("webpack") && trimed.endsWith("--json")) {
+    webpackRunDetected = true;
+  }
+  continue;
+}
+```
+
+- 변경 후 코드
+
+```java
+if (!webpackRunDetected) {
+  String trimed = line.trim();
+  if (trimed.contains("webpack") && trimed.contains("--json")) {
+    webpackRunDetected = true;
+  }
+  continue;
+}
+```
+
+### 그런데 테스트에서 에러 발생
+
+- Timeout 에러가 발생하는데 원인을 찾아봐야할 것 같습니다.
+- 기존 master 형상에서는 에러가 발생하지 않고 있거든요.
+
+```shell
+Error:  Errors: 
+Error:    ZeppelinIT.testAngularRunParagraph:337->AbstractZeppelinIT.clickAndWait:196->AbstractZeppelinIT.pollingWait:161 
+        » Timeout Expected condition failed: waiting for org.apache.zeppelin.AbstractZeppelinIT$$Lambda$1046/0x00000001007c3440@59d0f14b 
+        (tried for 30 second(s) with 1000 milliseconds interval)
+[INFO] 
+Error:  Tests run: 39, Failures: 0, Errors: 1, Skipped: 4
+[INFO] 
+[INFO] 
+[INFO] --- maven-failsafe-plugin:3.2.2:verify (default) @ zeppelin-integration ---
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  24:01 min
+[INFO] Finished at: 2024-08-09T12:44:45Z
+[INFO] ------------------------------------------------------------------------
+```
