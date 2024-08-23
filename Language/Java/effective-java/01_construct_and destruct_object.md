@@ -428,3 +428,10 @@ class MyClass {
   }
 }
 ```
+
+<br/>
+
+# 참고자료
+
+- Effective Java 3/E, Joshua Bloch
+

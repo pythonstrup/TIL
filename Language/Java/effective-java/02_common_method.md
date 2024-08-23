@@ -370,3 +370,10 @@ public int compareTo(PhoneNumber pn) {
   return COMPARATOR.compare(this, pn);
 }
 ```
+
+<br/>
+
+# 참고자료
+
+- Effective Java 3/E, Joshua Bloch
+
