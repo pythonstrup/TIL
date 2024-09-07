@@ -294,6 +294,117 @@ GradeLecture gradeLecture = new GradeLecture(
 
 <br/>
 
+## 3. 업캐스팅과 동적 바인딩
+
+- 현재 성적 계산 프로그램에 각 교수별로 강의에 대한 성적 통계를 계산하는 기능 추가
+
+```java
+public class Professor {
+
+  private String name;
+  private Lecture lecture;
+
+  public Professor(final String name, final Lecture lecture) {
+    this.name = name;
+    this.lecture = lecture;
+  }
+
+  public String compileStatistics() {
+    return String.format("[%s] %s - Avg: %.1f", name, lecture.evaluate(), lecture.average());
+  }
+}
+```
+
+- `Lecture` 인스턴스를 전달하는 예시
+
+```java
+Professor professorLecture = new Professor(
+    "다익스트라", new Lecture("알고리즘", 70, Arrays.asList(81, 95, 75, 50, 45)));
+System.out.println(professorLecture.compileStatistics());
+```
+
+- 만약 `Lecture` 인스턴스 대신 `GradeLecture` 인스턴스를 전달하면 어떻게 될까?
+
+```java
+Professor professorGradeLecture = new Professor(
+  "다익스트라",
+  new GradeLecture(
+      "객체지향 프로그래밍",
+      70,
+      Arrays.asList(81, 95, 75, 50, 45),
+      Arrays.asList(
+          new Grade("A", 100, 95),
+          new Grade("B", 94, 80),
+          new Grade("C", 79, 70),
+          new Grade("D", 69, 50),
+          new Grade("F", 49, 0))));
+System.out.println(professorGradeLecture.compileStatistics());
+```
+
+- 아무런 문제가 없다.
+- 동일한 객체 참조인 `lecture`에 대해 동일한 `evaluate` 메시지를 전송하는 동일한 코드 안에서 서로 다른 클래스 안에 구현된 메소드를 실행할 수 있다는 사실을 알 수 있다.
+- 이처럼 코드 안에서 선언된 참조 타입과 무관하게 실제로 메시지를 수신하는 객체의 타입에 따라 실행되는 메소드가 달라질 수 있는 것은 업캐스팅과 동적 바인딩이라는 메커니즘이 작용하기 때문이다.
+  - 부코 클래스(`Lecture`) 타입으로 선언된 변수에 자식 클래스(`GradeLecture`)의 인스턴스를 할당하는 것이 가능하다. 이를 **업캐스팅**이라고 부른다.
+  - 선언된 변수의 타입이 아니라 메시지를 수신하는 객체의 타입에 따라 실행되는 메소드가 결정된다. 이것은 객체지향 시스템이 메시지를 처리할 적절할 메소드를 컴파일 시점이 아니라 실행 시점에 결정하기 때문에 가능하다. 이를 **동적 바인딩**이라고 부른다.
+
+> #### 개방-폐쇄 원칙과 의존성 역전 원칙
+> - 업캐스팅과 동적 메소드 탐색은 코드를 변경하지 않고도 기능을 추가할 수 있게 해주며 이것은 개방-폐쇄 원칙의 의도와도 일치한다.
+> - 개방-폐쇄 원칙은 유연하고 확장 가능한 코드를 만들기 위해 의존관계를 구조화하는 방법을 설명한다. 업캐스팅과 동적 메소드 탐색은 상속을 이용해 개방-폐쇄 원칙을 따르는 코드를 작성할 때 하부에서 동작하는 기술적인 내부 메커니즘을 설명한다. 개방-폐쇄 원칙이 목적이라면 업캐스팅과 동적 메소드 탐색은 목적에 이르는 방법이다.
+
+### 업캐스팅
+
+- 상속을 이용하면 부모 클래스의 퍼블릭 인터페이스가 자식 클래스의 퍼블릭 인터페이스에 합쳐지기 때문에 부모 클래스의 인스턴스에게 전송할 수 있는 메시지를 자식 클래스의 인스턴스에게 전송할 수 있다.
+- 부모클래스의 인스턴스 대신 자식 클래스의 인스턴스를 사용하더라도 메시지를 처리하는 데는 아무런 문제가 없으며, 컴파일러는 명시적인 타입 변환 없이도 자식 클래스가 부모 클래스를 대체할 수 있게 허용한다.
+- 이런 특성을 활용할 수 있는 대표적인 두 가지가 대입문과 파라미터 타입이다.
+  - 객체지향 언어는 명시적으로 타입을 변환하지 않고도 부모 클래스 타입의 참조 변수에 자식 클래스의 인스턴스를 대입할 수 있게 허용한다.
+
+```java
+Lecture lecture = new GradeLecture(...);
+```
+
+- 부모 클래스 타입으로 선언된 파라미터에 자식 클래스의 인스턴스를 전달하는 것도 가능하다.
+
+```java
+public class Professor {
+  public Professor(String name, Lecture lecture) {...}
+}
+
+Professor professor = new Professor("다익스트라", new GradeLecture(...));
+```
+
+- 반대로 부모 클래스의 인스턴스를 자식 클래스 타입으로 변환하기 위해서는 명시적인 타입 캐스팅이 필요한데 이를 `다운캐스팅 downcasting`이라고 부른다.
+
+```java
+Lecture lecture = new GradeLecture(...);
+GradeLecture lecture = (GradeLecture) lecture;
+```
+
+- 컴파일러 관점에서 자식 클래스는 아무런 제약 없이 부모 클래스를 대체할 수 있기 때문에 부모 클래스와 협력하는 클라이언트는 다양한 자식 클래스의 인스턴스와도 협력하는 것이 가능하다.
+- 여기서 자식 클래스가 현재 상속 계층에 존재하는 자식 클래스뿐만 아니라 앞으로 추가될지도 모르는 미래의 자식 클래스들을 포함한다.
+  - `Lecture`의 모든 자식 클래스는 `evaluate` 메시지를 이해할 수 있기 때문에 `Professor`는 `Lecture`를 상속받는 어떤 자식 클래스와도 협력할 수 있는 무한한 확장 가능성을 가진다.  
+  - 따라서 이 설계는 유연하며 확장이 용이하다.
+
+### 동적 바인딩
+
+- 전통적인 언어에서 함수를 실행하는 방법은 함수를 호출하는 것이다.
+  - 함수를 컴파일타임에 결정한다. (코드를 작성하는 시점에 호출될 코드가 결정된다.)
+  - 이런 방식을 `정적 바인딩 static binding`, `초기 바인딩 early binding`, `컴파일타임 바인딩 compile-time binding`이라고 부른다.
+- 객체지향 언어에서는 메지지를 수신했을 때 실행될 메소드가 런타임에 결정된다.
+  - 객체가 실제로 어떤 클래스의 인스턴스인지. 또 해당 클래스의 상속 계층의 어디에 위치하는지를 알아야 한다.
+  - 이런 방식을 `동적 바인딩 dynamic binding`, `지연 바인딩 late binding`이라고 부른다.
+
+<br/>
+
+## 4. 동적 메소드 탐색과 다형성
+
+- 객체지향 시스템은 다음 규칙에 따라 실행할 메소드를 선택한다.
+1. 메시지를 수신한 객체는 먼저 자신을 생성한 클래스에 적합한 메소드가 존재하는지 검사한다. 존재하면 메소드를 실행하고 탐색을 종료한다.
+2. 메소드를 찾지 못했다면 부모 클래스에서 메소드 탐색을 계속한다. 이 과정은 적합한 메소드를 찾을 때까지 상속 계층을 따라 올라가며 계속된다.
+3. 상속 계층의 가장 최상위 클래스에 이르렀지만 메소드를 발견하지 못한 경우 예외를 발생시키며 탐색을 중단한다.
+
+
+<br/>
+
 # 참고자료
 
 - 오브젝트, 조영호 지음
