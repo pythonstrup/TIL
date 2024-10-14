@@ -73,6 +73,8 @@
 
 #### 재귀 구조로 구현
 
+- pseudo code 
+
 ```
 procedure DFS(G, v) is
     label v as discovered
@@ -81,8 +83,28 @@ procedure DFS(G, v) is
             recursively call DFS(G, w)
 ```
 
+- java code
+
+```java
+class dfs {
+  
+  Map<Integer, List<Integer>> graph = new HashMap<>();
+  
+  public List<Integer> recursiveDFS(int v, List<Integer> discovered) {
+    discovered.add(v);
+    for (Integer w: graph.get(v)) {
+      if (!discovered.contains(w)) {
+        discovered = recursiveDFS(w, discovered);
+      }
+    }
+    return discovered;
+  }
+}
+```
 
 #### 스택을 이용한 반복 구조
+
+- pseudo code
 
 ```
 procedure DFS_iterative(G, v) is
@@ -96,9 +118,36 @@ procedure DFS_iterative(G, v) is
                 S.push(w)
 ```
 
+- java code
+
+```java
+class dfs {
+  
+  Map<Integer, List<Integer>> graph = new HashMap<>();
+  
+  public List<Integer> iterativeDFS(int v) {
+    List<Integer> discovered = new ArrayList<>();
+    Deque<Integer> stack = new ArrayList<>();
+    stack.push(v);
+    while (!stack.isEmpty()) {
+      v = stack.pop();
+      if (!discovered.contains(v)) {
+        discovered.add(v);
+        for (int w: graph.get(v)) {
+          stack.push(w);
+        }
+      }
+    }
+    return discovered;
+  }
+}
+```
+
 ### BFS
 
 #### 큐를 이용한 반복 구조로 구현
+
+- pseudo code
 
 ```
 procedure BFS(G, root) is
@@ -116,6 +165,43 @@ procedure BFS(G, root) is
                   Q.enqueue(w)
 ```
 
+- java code
+
+```java
+class bfs {
+
+  Map<Integer, List<Integer>> graph = new HashMap<>();
+  
+  public List<Integer> iterativeBFS(int start_v) {
+    List<Integer> discovered = new ArrayList<>();
+    discovered.add(start_v);
+    Queue<Integer> queue = new LinkedList<>();
+    queue.add(start_v);
+    while (!queue.isEmpty()) {
+      int v = queue.poll();
+      for (int w: graph.get(v)) {
+        if (!discovered.contains(w)) {
+          discovered.add(w);
+          queue.add(w);
+        }
+      }
+    }
+    return discovered;
+  }
+}
+```
+
+### 백트래킹
+
+- 백트래킹은 DFS보다 좀 더 넓은 의미를 가진다.
+- 해결책에 대한 후보를 구축해 나가다 가능성이 없다고 판단되는 즉시 후보를 포기(백트랙 Backtrack)해 정답을 찾아가는 범용적인 알고리즘으로 `제약 충족 문제 Constraint Satisfaction Problem` 등에 유용하다.
+- 주로 재귀로 구현. 가보고 되돌아오고를 반복한다.
+- 불필요한 부분을 일찍 포기한다면 탐색을 최적화할 수 있기 때문에 가지치기는 트리의 탐색 최적화 문제와도 관련이 깊다.
+
+### 제약 충족 문제
+
+- 수많은 제약 조건을 충족하는 상태를 찾아내는 수학 문제.
+  - 스도쿠 sudoku
 
 # 참고자료
 
