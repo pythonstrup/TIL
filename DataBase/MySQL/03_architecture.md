@@ -175,9 +175,134 @@ mysql> SELECT thread_id, name, type, processlist_user, processlist_host
 
 <br>
 
-## 메모리 할당 및 사용 구조
+### 1-3. 메모리 할당 및 사용 구조
 
 <img src="img/architecture03.png">
+
+- MySQL에서 사용되는 메모리 공간은 크게 글로벌 메모리 영역과 로컬 메모리 영역으로 구분할 수 있다.
+- 글로벌 메모리 영역
+  - MySQL 서버가 시작되면서 운영체제로부터 할당된다.
+  - 요청된 메모리 공간을 100%로 할당해줄 수도 있고, 그 공간만큼 예약해두고 필요할 때 조금씩 할당해주는 경우도 있다.
+  - 각 운영체제의 메모리 할당 방식은 상당히 복잡하며, MySQL 서버가 사용하는 정확한 메모리 양을 측정하는 것 또한 쉽지 않다.
+
+#### 1-3-1. 글로벌 메모리 영역
+
+- 일반적으로 클라이언트 스레드의 수와 무관하게 하나의 메모리 공간만 할당한다.
+  - 단 필요에 따라 2개 이상의 메모리 공간을 할당받을 수도 있지만 클라이언트의 스레드 수와는 무관하며, 생성된 글로벌 영역이 N개라 해도 모슨 스레드에 의해 공유된다.
+- 대표적인 글로벌 메모리 영역
+  - 테이블 캐시
+  - InnoDB 버퍼 풀
+  - InnoDB 어댑티브 해시 인덱스
+  - InnoDB 리두 로그 버퍼
+
+#### 1-3-2. 로컬 메모리 영역
+
+- 세션 메모리 영역이라고도 표현하며, MySQL 서버상에 존재하는 클라이언트 스레드가 쿼리를 처리하는 데 사용하는 메모리 영역이다.
+  - 클라이언트가 MySQL 서버에 접속하면 MySQL 서버에서는 클라이언트 커넥션으로부터의 요청을 처리하기 위해 스레드를 하나씩 할당하게 되는데, 클라이언트 스레드가 사용하는 메모리 공간이라고 해서 `클라이언트 메모리 영역`이라고도 한다.
+  - **클라이언트와 MySQL 서버와의 커넥션을 세션**이라고 하기 때문에 `로컬 메모리 영역`을 `세션 메모리 영역`이라고도 표현한다.
+- 각 클라이언트 스레드별로 독립적으로 할당되며 절대 공유되어 사용되지 않는다면 특징이 있다.
+  - 일반적으로 글로벌 메모리 영역의 크기는 주의해서 설정하지만 소트 버퍼와 같은 로컬 메모리 영역은 크게 신경 쓰지 않고 설정하는데, 최악의 경우에는 MySQL 서버가 메모리 부족으로 멈춰버릴 수 있으므로 적절한 메모리 공간을 설정하는 것이 중요하다.
+- 한 가지 중요한 특징! 각 쿼리의 용도별로 필요할 때만 공간이 할당되고 필요하지 않은 경우에는 MySQL이 메모리 공간을 할당조차도 하지 않을 수도 있다는 점이다.
+  - 대표적으로 소트 버퍼나 조인 버퍼.
+- 로컬 메모리 공간은 커넥션이 열려 있는 동안 계속 할당된 상태로 남아 있는 공간도 있고 그렇지 않고 쿼리를 실행하는 순간에만 할당했다가 다시 해제하는 공간도 있다.
+- 대표적인 로컬 메모리 영역
+  - 정렬 버퍼 Sort Buffer
+  - 조인 버퍼
+  - 바이너리 로그 캐시
+  - 네트워크 버퍼
+
+### 1-4. 플러그인 스토리지 엔진 모델
+
+<img src="img/architecture04.jpg">
+
+- 플러그인 모델은 MySQL 독특한 구조 중 하나다.
+  - 플러그인해서 사용할 수 있는 것이 스토리지 엔진만 있는 것은 아니다.
+  - 전문 검색 엔진을 위한 검색어 파서(인덱싱할 키워드를 분리해내는 작업)도 플러그인 형태로 개발해서 사용할 수 있으며,
+  - 사용자 인증을 위한 Native Authentication과 Caching SHA-2 Authentication 등도 모두 플러그인으로 구현되어 제공된다.
+- 기본적으로 많은 스토리지 엔진을 가지고 있지만. 세상의 수많은 사용자의 요구 조건을 만족시키기 위해 기본적으로 제공되는 스토리지 엔진 이외에 부가적인 기능을 더 제공하는 스토리지 엔진이 필요할 수 있다.
+  - 이러한 요건을 기초로 다른 전문 개발 회사 또는 사용자가 직접 스토리지 엔진을 개발하는 것도 가능하다.
+
+<img src="img/architecture05.jpg">
+
+- 거의 대부분의 작업이 MySQL 엔진에서 처리되고, 마지막 '데이터 읽기/쓰기' 작업만 스토리지 엔진에 의해 처리된다.
+  - 사용자가 새로운 용도의 스토리지 엔진을 만든다 하더라도 DBMS 전체 기능이 아닌 일부분의 기능만 수행하는 엔진을 작성하게 된다는 의미다.
+
+```shell
+mysql> SHOW ENGINES;
++--------------------+---------+----------------------------------------------------------------+--------------+------+------------+
+| Engine             | Support | Comment                                                        | Transactions | XA   | Savepoints |
++--------------------+---------+----------------------------------------------------------------+--------------+------+------------+
+| ndbcluster         | NO      | Clustered, fault-tolerant tables                               | NULL         | NULL | NULL       |
+| MEMORY             | YES     | Hash based, stored in memory, useful for temporary tables      | NO           | NO   | NO         |
+| InnoDB             | DEFAULT | Supports transactions, row-level locking, and foreign keys     | YES          | YES  | YES        |
+| PERFORMANCE_SCHEMA | YES     | Performance Schema                                             | NO           | NO   | NO         |
+| MyISAM             | YES     | MyISAM storage engine                                          | NO           | NO   | NO         |
+| FEDERATED          | NO      | Federated MySQL storage engine                                 | NULL         | NULL | NULL       |
+| ndbinfo            | NO      | MySQL Cluster system information storage engine                | NULL         | NULL | NULL       |
+| MRG_MYISAM         | YES     | Collection of identical MyISAM tables                          | NO           | NO   | NO         |
+| BLACKHOLE          | YES     | /dev/null storage engine (anything you write to it disappears) | NO           | NO   | NO         |
+| CSV                | YES     | CSV storage engine                                             | NO           | NO   | NO         |
+| ARCHIVE            | YES     | Archive storage engine                                         | NO           | NO   | NO         |
++--------------------+---------+----------------------------------------------------------------+--------------+------+------------+
+11 rows in set (0.00 sec)
+```
+
+```shell
+mysql> SHOW PLUGINS;
++----------------------------------+----------+--------------------+---------+---------+
+| Name                             | Status   | Type               | Library | License |
++----------------------------------+----------+--------------------+---------+---------+
+| binlog                           | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| mysql_native_password            | ACTIVE   | AUTHENTICATION     | NULL    | GPL     |
+| sha256_password                  | ACTIVE   | AUTHENTICATION     | NULL    | GPL     |
+| caching_sha2_password            | ACTIVE   | AUTHENTICATION     | NULL    | GPL     |
+| sha2_cache_cleaner               | ACTIVE   | AUDIT              | NULL    | GPL     |
+| daemon_keyring_proxy_plugin      | ACTIVE   | DAEMON             | NULL    | GPL     |
+| CSV                              | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| MEMORY                           | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| InnoDB                           | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| INNODB_TRX                       | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMP                       | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMP_RESET                 | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMPMEM                    | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMPMEM_RESET              | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMP_PER_INDEX             | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CMP_PER_INDEX_RESET       | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_BUFFER_PAGE               | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_BUFFER_PAGE_LRU           | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_BUFFER_POOL_STATS         | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_TEMP_TABLE_INFO           | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_METRICS                   | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_DEFAULT_STOPWORD       | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_DELETED                | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_BEING_DELETED          | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_CONFIG                 | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_INDEX_CACHE            | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_FT_INDEX_TABLE            | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_TABLES                    | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_TABLESTATS                | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_INDEXES                   | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_TABLESPACES               | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_COLUMNS                   | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_VIRTUAL                   | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_CACHED_INDEXES            | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| INNODB_SESSION_TEMP_TABLESPACES  | ACTIVE   | INFORMATION SCHEMA | NULL    | GPL     |
+| MyISAM                           | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| MRG_MYISAM                       | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| PERFORMANCE_SCHEMA               | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| TempTable                        | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| ARCHIVE                          | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| BLACKHOLE                        | ACTIVE   | STORAGE ENGINE     | NULL    | GPL     |
+| FEDERATED                        | DISABLED | STORAGE ENGINE     | NULL    | GPL     |
+| ndbcluster                       | DISABLED | STORAGE ENGINE     | NULL    | GPL     |
+| ndbinfo                          | DISABLED | STORAGE ENGINE     | NULL    | GPL     |
+| ndb_transid_mysql_connection_map | DISABLED | INFORMATION SCHEMA | NULL    | GPL     |
+| ngram                            | ACTIVE   | FTPARSER           | NULL    | GPL     |
+| mysqlx_cache_cleaner             | ACTIVE   | AUDIT              | NULL    | GPL     |
+| mysqlx                           | ACTIVE   | DAEMON             | NULL    | GPL     |
++----------------------------------+----------+--------------------+---------+---------+
+48 rows in set (0.01 sec)
+```
 
 
 ## 참고자료

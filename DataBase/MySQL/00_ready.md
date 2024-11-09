@@ -1,8 +1,9 @@
 # Docker Mysql 설치 및 실행
 
 ```shell
-$ docker pull mysql:8.0
-$  docker run -p 3306:3307 -e MYSQL_ROOT_PASSWORD=Qwer1234 -d mysql:8.0
+$ docker pull mysql:8.0 # 생략 가능
+$ docker run -p 3307:3306 -e MYSQL_ROOT_PASSWORD=qwer1234 -d mysql:8.0
+$ mysql -h 127.0.0.1 -P 3307 -u root -p
 ```
 
 # 데이터 구성
