@@ -159,6 +159,159 @@ $ javac -d . MyRemote.java MyRemoteImpl.java
 $ java com.pythonstrup.proxy.rmi.MyRemoteImpl 
 ```
 
+### 작동 방식
+
+<img src="img/proxy01.jpg">
+
+1. 클라이언트 RMI 레지스트리를 룩업한다.
+
+```java
+Naming.lookup("rmi://127.0.0.1/RemoteHello")
+```
+
+2. RMI 레지스트리에서 스텁 객체를 리턴한다. 스텁 객체는 `lookup()` 메소드의 리턴 값으로 전달되며, RMI에서는 그 스텁을 자동으로 역직렬화한다. 이때 (rmic에서 생성해 준) 스텁 클래스는 반드시 클라이언트에만 있어야 한다. 그 클래스가 없으면 역직렬화를 할 수 없다.
+3. 클라이언트는 스텁의 메소드를 호출한다. 스텁이 진짜 서비스 객체라고 생각한다.
+
+
+<br/>
+
+## 프록시 패턴의 정의
+
+> #### 프록시 패턴
+> 특정 객체로의 접근을 제어하는 대리인(특정 객체를 대변하는 객체)을 제공한다.
+
+- 프록시는 다른 객체의 '대리인'이라고 봐도 무방하다.
+- 하지만 접근을 제어하는 프록시는 어떤 것일까?
+  - 프록시 패턴에는 수많은 변종이 있다. 그리고 그러한 변종들은 대개 접근을 제어하는 방법을 다르게 제공한다.
+- 프록시에서 접근을 제어하는 몇 가지 방법
+  - 원격 프록시를 써서 원격 객체로의 접근을 제어할 수 있다.
+  - `가상 프록시 virtual proxy`를 써서 생성하기 힘든 자원으로의 접근을 제어할 수 있다.
+  - `보호 프록시 protection proxy`를 써서 접근 권한이 필요한 자원으로의 접근을 제어할 수 있다.
+
+### 클래스 다이어그램
+
+- `Proxy`와 `RealSubject` 모두 `Subject` 인터페이스를 구현한다.
+  - 이러면 어떤 클라이언트에서든 프록시를 주제와 똑같은 식으로 다룰 수 있다.
+- `RealSubject`는 진짜 작업을 대부분 처리하는 객체다. `Proxy`는 그 객체로의 접근을 제어하는 객체다.
+- `Proxy`에는 진짜 작업을 처리하는 객체의 레퍼런스가 들어있다.
+  - 진짜 객체가 필요하면 그 레퍼런스를 사용해서 요청을 전달한다.
+- `Proxy`에서 `RealSubject`의 인스턴스를 생성하거나, 그 객체의 생성 과정에 관여하는 경우가 많다.
+
+```mermaid
+classDiagram
+  Subject <|.. RealSubject
+  Subject <|.. Proxy
+  Proxy --> RealSubject: subject
+  class Subject{
+    request()
+  }
+  class RealSubject {
+      request()
+  }
+  class Proxy {
+    request()
+  }
+```
+
+### 원격 프록시와 가상 프록시 비교하기
+
+- 프록시 패턴은 매우 다양한 형태로 쓰이지만, 어떤 형태로 사용하든 결국은 기본 프록시 디자인을 따른다.
+
+|                                      원격 프록시                                      |                     가상 프록시                      |
+|:--------------------------------------------------------------------------------:|:-----------------------------------------------:|
+|                           다른 JVM 객체에 들어 있는 객체의 대리인에 해당                           |           생성하는 데 많은 비용이 드는 객체를 대신한다.            |
+| 프록시의 메소드를 호출하면 그 호출이 네트워크로 전달되어 결국 원격 객체의 메소드가 호출. 호출의 결과는 다시 프록시를 거쳐 클라이언트에게 전달 | 객체가 필요해지면 그 때 객체를 생성하고 `RealSubject` 직접 요청을 전달. |
+
+<br/>
+
+## 가상 프록시 예제 - Java Swing
+
+```mermaid
+classDiagram
+  Icon <|.. ImageIcon
+  Icon <|.. ImageProxy
+  ImageProxy --> ImageIcon: subject
+  class Icon {
+    <<interface>>
+    getIconWidth()
+    getIconHeight()
+    paintIcon()
+  }
+  class ImageIcon {
+    getIconWidth()
+    getIconHeight()
+    paintIcon()
+  }
+  class ImageProxy {
+    getIconWidth()
+    getIconHeight()
+    paintIcon()
+  }
+```
+
+<br/>
+
+## 이모저모
+
+#### 원격 프록시와 가상 프록시는 완전히 달라보인다. 과연 정말 둘이 같은 패턴에 속하는 게 맞는지?
+- 실전에서는 프록시 패턴의 변종을 더 많이 보게 될 것이다.
+- 그 모든 변종의 공통점은 클라이언트가 실제 객체의 메소드를 호출하면, 그 호출을 중간에 가로챈다는 점이다.
+- 간접적인 처리를 통해 요청 내역을 원격 시스템에 있는 객체에 전달할 수도 있고, 생성하는 데 많은 비용이 드는 객체를 대변해 줄 수도 있고, 클라이언트별로 호출할 수 있는 메소드를 제한하는 문지기 역할을 하는 것도 가능하다.
+
+#### 데코레이터와의 차이점?
+
+- 종종 똑같아 보이기도 한다. 하지만 용도로 구분할 수 있다.
+- `데코레이터`는 클래스의 새로운 행동을 추가하는 용도로 쓰이지만 `프록시`는 어떤 클래스로의 접근을 제어하는 용도로 쓰인다.
+- 예제에서 "로딩 메시지를 표시하는 것이 결국 행동을 추가하는 것이 아닌가?"라는 의문이 들 수 있지만 그보다 더 중요한 점은 `ImageProxy`가 `ImageIcon`으로의 접근을 제어하고 있다는 사실이다.
+
+#### 프록시와 어댑터의 차이
+
+- 프록시와 어댑터는 모두 클라이언트와 다른 객체 사이에서 클라이언트의 요청을 다른 객체에게 전달하는 역할을 한다.
+- 어댑터는 다른 객체의 인터페이스를 바꿔 주지만, 프록시는 똑같은 인터페이스를 사용한다는 차이점이 있다.
+- 보호 프록시는 어댑터와 정말 비슷하다.
+  - 보호 프록시는 클라이언트의 역할에 따라서 객체에 있는 특정 메소드로의 접근을 제어한다.
+  - 그러다 보니 보호 프록시는 클라이언트에게 인터페이스의 일부분만을 제공한다. 이런 점은 어댑터와 비슷하다고 할 수 있다.
+
+<br/>
+
+## 보호 프록시
+
+- 자바의 java.lang.reflect 패키지 안에 프록시 기능이 내장되어 있다.
+  - 이 패키지를 사용하면 즉석에서 하나 이상의 인터페이스를 구현하고, 지정한 클래스에 메소드 호출을 전달하는 프록시 클래스를 만들 수 있다.
+- 진짜 프록시 클래스는 실행 중에 생성되므로 이러한 자바 기술을 `동적 프록시 dynamic proxy`라고 부른다.
+- 자바의 동적 프록시를 활용해 보호 프록시를 만들어보자.
+
+### 다이어그램
+
+```mermaid
+classDiagram
+  Subject <|.. RealSubject
+  Subject <|.. Proxy
+  Proxy --> ConcreteInvocationHandler
+  ConcreteInvocationHandler --> RealSubject
+  ConcreteInvocationHandler ..|> InvocationHandler
+  class Subject{
+    request()
+  }
+  class RealSubject {
+    request()
+  }
+  class Proxy {
+    request()
+  }
+  class InvocationHandler {
+    <<interface>>
+    invoke()
+  }
+  class ConcreteInvocationHandler {
+    invoke()
+  }
+```
+
+- 자바에서 Proxy 클래스를 생성해 주므로 `Proxy` 클래스에게 무슨 일을 해야 하는지 알려 줄 방법이 필요하다.
+- 필요한 코드를 직접 구현하는 건 아니기에 이전처럼 그 코드를 프록시 클래스에 넣을 수는 없다.
+  - 그 코드를 프록시 클래스에 넣을 수 없다면 어디에 넣어야 할까? `InvocationHandler`에 넣으면 된다. `InvocationHandler`는 프록시에 호출되는 모든 메소드에 응답한다.
+  - `Proxy`에서 메소드 호출을 받으면 항상 `InvocationHandler`에 진짜 작업을 부탁한다고 생각하면 된다.
 
 <br/>
 
