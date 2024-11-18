@@ -173,6 +173,298 @@ mysql > SET SESSION foreign_key_checks=ON;
 > - 버퍼 풀의 크기가 100GB라고 리두 로그의 공간이 100GB가 돼야 한다는 것은 아니다.
 > - 일반적으로 리두 로그는 변경분만 가지고 버퍼 풀은 데이터 페이지를 통째로 가지기 때문에 데이터 변경이 발생해도 리두 로그는 훨씬 작은 공간만 있으면 된다.
 
+#### 2-7-4. 버퍼 풀 플러시 Buffer Pool Flush
+
+- MySQL 5.6 버전까지는 InnoDB 스토리지 더티 페이지 플러시 기능이 그다지 부드럽게 처리되지 않았다.
+  - 버전 업그레이드를 통해 더티 페이지를 디스크에 동기화하는 부분에서 예전과 같은 딧스크 쓰기 폭증 현상은 발생하지 않는다.
+- InnoDB 스토리지 엔진 버퍼 풀에서 아직 디스크로 기록되지 않은 더티 페이지들을 성능상의 악영향 없이 디스크에 동기화하기 위해 다음과 같이 2개의 플러시 기능을 백그라운드 실행한다.
+  - 플러시 리스트 플러시
+  - LRU 리스트 플러시
+
+##### 2-7-4-1. 플러시 리스트 플러시
+
+- 리두 로그 공간의 재활용을 위해 주기적으로 오래된 리두 로그 엔트리가 사용하는 공간을 비워야 한다.
+  - 리두 로그 공간이 지워지려면 반드시 InnoDB 버퍼 풀의 더티 페이지가 먼저 디스크로 동기화돼야 한다.
+- InnoDB 스토리지 엔진에서 더티 페이지를 디스크로 동기화하는 스레드를 `클리너 스레드 Cleaner Thread`라고 한다.
+  - `innodb_page_cleaners` 설정값은 웬만하면 `innodb_buffer_pool_instances` 설정값과 동일한 값으로 설정.
+- InnoDB 버퍼 풀에 더티 페이지가 많으면 많을수록 `디스크 쓰기 폭발 Disk IO Burst` 현상이 발생할 가능성이 높아진다.
+  - 디스크에 기록되는 더티 페이지 개수보다 더 많은 더티 페이지가 발생하면 버퍼 풀에 더티 페이지가 계속 증가하게 되고, 어느 순간 더티 페이지의 비율이 90%가 넘어가면 InnoDB 스토리지 엔진은 급작스럽게 더티 페이지를 디스크로 기록해야 한다고 판단한다.
+
+- InnoDB 스토리지 엔진은 `어댑티브 플러시 Adaptive Flush`라는 기능을 제공한다.
+  - `innodb_adaptive_flushing` 시스템 변수로 키고 끔. 기본값이 사용.
+  - 어댑티브 플러시 기능은 단순히 버퍼 풀의 더티 페이지 비율이나 `innodb_io_capacity`, `innodb_io_capacity_max` 설정값에 의존하지 않고 새로운 알고리즘을 사용한다.
+  - 리두 로그의 증가 속도를 분석해서 적절한 수준의 더티 페이지가 버퍼 풀에 유지될 수 있도록 디스크 쓰기를 실행한다.
+  - `innodb_adaptive_flushing_lwm` 시스템 변수의 기본값은 10%인데, 이는 전체 리두 공간에서 활성 리두 로그의 공간이 10% 미만이면 어댑티브 플러시가 작동하지 않게 한다.
+- `innodb_flush_neighbors` 시스템 변수는 더티 페이지를 디스크에 기록할 때 디스크에서 근접한 페이지 중에서 더티 페이지가 있다면 InnoDB 스토리지 엔진이 함께 묶어서 디스크로 기록하게 해주는 기능을 활성화할 지 결정한다.
+  - HDD를 사용한다면 1또는 2로 설정하는 것이 좋다.
+  - SSD를 사용한다면 비활성 모드로 유지.
+
+##### 2-7-4-2. LRU 리스트 플러시
+
+- 사용 빈도가 낮은 데이터 페이지를 제거해서 새로운 페이지들을 읽어올 공간을 만들어야 하는데, 이를 위해 LRU 리스트(LRU_list) 플러시 함수가 사용된다.
+  - LRU 리스트의 끝부분부터 시작해서 최대 `innodb_lru_scan_depth` 시스템 변수에 설정된 개수만큼의 페이지들을 스캔한다.
+  - 스캔하면서 더티 페이지는 디스크에 동기화하게 하면, 클린 페이지는 즉시 `프리 Free` 리스트로 페이지를 옮긴다.
+- LRU 리스트의 스캔은 (`innodb_buffer_pool_instances` * `innodb_lru_scan_depth`) 수만큼 수행한다.
+
+### 2-7-5. 버퍼 풀 상태 백업 및 복구
+
+- InnoDB 서버의 버퍼 풀은 쿼리의 성능에 매우 밀접하게 연결돼 있다.
+- 쿼리 요청이 매우 빈번한 서버 => 셧다운 => 다시 시작 => 쿼리 처리 성능이 평상시보다 1/10도 안되는 경우가 대부분.
+  - 원래대로라면 버퍼 풀에 쿼리들이 사용할 데이터가 이미 준비돼 있으므로 디스크에서 데이터를 읽지 않아도 처리할 수 있기 때문이다.
+  - 데이터가 버퍼 풀에 적재되어 있는 상태 = `워밍업 Warming Up`
+- 서버를 다시 시작해야 하는 경우 MySQL 서버를 셧다운하기 전에 아래와 같이 시스템 변수를 통해 버퍼 풀의 상태를 백업할 수 있다.
+
+```shell
+-- // MySQL 서버 셧다운 전에 버퍼 풀의 상태 백업
+mysql> SET GLOBAL innodb_buffer_pool_dump_now=ON;
+
+-- // MySQL 서버 재시작 후, 백업된 버퍼 풀의 상태 복구
+mysql> SET GLOBAL innodb_buffer_pool_load_now=ON;
+```
+
+- 데이터 디렉터리에 `ib_buffer_pool`이라는 이름의 파일이 생성. 보통 몇십 MB 이하다.
+- 아래와 같은 명령어를 사용해 버퍼 풀을 다시 복구하는 과정이 얼마나 진행됐는지 확인할 수 있다.
+
+```shell
+mysql> SHOW STATUS LIKE 'Innodb_buffer_pool_dump_status'\G
+```
+
+- 버퍼 풀 적재 작업에 너무 시간이 오래 걸려서 멈추고자 한다면 아래와 같은 명령어를 사용하자.
+
+```shell
+mysql> SET GLOBAL innodb_buffer_pool_load_abort=ON;
+```
+
+### 2-7-6. 버퍼 풀의 적재 내용 확인
+
+- `information_schema` 데이터베이스에 `innodb_cached_indexes` 테이블을 통해 확인할 수 있다.
+
+```shell
+mysql> SELECT
+         it.name table_name,
+         ii.name index_name,
+         ici.n_cached_pages n_cached_pages
+       FROM information_schema.innodb_tables it
+         INNER JOIN information_schema.innodb_indexes ii ON ii.table_id = it.table_id
+         INNER JOIN information_schema.innodb_cached_indexes ici ON ici.index_id = ii.index_id
+       WHERE it.name=CONCAT('employees', '/', 'employees');
+```
+
+### 2-8. Double Wirte Buffer
+
+- 리두 로그의 공간 낭비를 막기 위해 페이지의 변경된 내용만 기록한다.
+  - 더티 페이지가 만약 일부만 디스크에 기록되는 문제가 발생하면 그 페이지의 내용을 복구할 수 없을 수도 있다. (`Partial-Page`, `Torn-Page`)
+- InnoDB 엔진은 이 같은 문제를 막기 위해 `Double-Write` 기법을 이용한다.
+
+<img src="img/architecture09.jpg">
+
+1. 먼저 'A' ~ 'E' 까지의 더티 페이지를 우선 묶어서 한 번의 디스크 쓰기로 시스템 테이블스페이스의 DoubleWrite 버퍼에 기록한다.
+2. 각 더티 페이지를 파일의 적당한 위치에 하나씩 랜덤으로 쓰기를 실행한다.
+
+- 데이터 무결성이 매우 중요한 서비스에서는 DoubleWrite의 활성화를 고려하자.
+  - 만약 리두 로그 동기화 설정(`innodb_flush_log_at_trx_commit`)을 1이 아닌 값으로 설정했다면 DoubleWrite도 비활성화하는 것이 좋다.
+
+### 2-9. 언두 로그
+
+- 언두 로그의 용도는 아래와 같다.
+- **트랜잭션 보장**
+  - 롤백되면 변경 전 데이터로 복구하는 데 사용
+- **격리 수준 보장**
+  - 특정 커넥션에서 데이터를 변경하는 도중에 다른 커넥션에서 데이터를 조회하면 트랜잭션 격리 수준에 맞게 변경 중인 레코드를 읽지 않고 언두 로그에 백업해둔 데이터를 읽어서 반환하기도 함.
+
+#### 2-9-1. 언두 로그 모니터링
+
+- 대용량의 데이터를 처리하는 트랜잭션, 오랜 시간 동안 실행되는 트랜잭션을 실행할 때 언두 로그의 양은 급격히 증가할 수 있다.
+  - 장기간 활성화된 트랜잭션으로 인해 언두 로그가 지워지지 않기 때문이다.
+- 아래 명령을 통해 언두 로그 건수를 확인할 수 있다.
+
+```shell
+mysql> SHOW ENGINE INNODB STATUS \G
+```
+
+#### 2-9-2. 언두 테이블스페이스 관리
+
+- 언두 로그가 저장되는 공간을 `언두 테이블스페이스 Undo Tablespace`라고 한다.
+- 하나의 언두 테이블스페이스는 1개 이상 128개 이하의 롤백 세그먼트를 가지며, 롤백 세그먼트는 1개 이상의 `언두 슬롯 Undo Slot`을 가진다.
+- 하나의 롤백 세그먼트는 InnoDB의 페이지 크기를 16바이트로 나눈 값의 개수만큼의 언두 슬롯을 가진다.
+  - ex. 페이지 크기가 16KB라면 하나의 롤백 세그먼트는 1024개의 언두 슬롯을 갖게 된다.
+  - 하나의 트랜잭션이 필요로 하는 언두 슬롯의 개수는 트랜잭션이 실행하는 `INSERT`, `UPDATE`, `DELETE` 문장의 특성에 따라 최대 4개까지 언두 슬롯을 사용하게 된다.
+  - 일반적으로는 트랜잭션이 임시 테이블을 사용하지 않으므로 하나의 트랜잭션은 대략 2개 정도의 언두 슬롯을 필요로 한다고 가정하면 된다.
+  - 따라서 동시 처리 가능한 트랜잭션 개수는 다음 수식으로 예측해볼 수 있다.
+
+```
+최대 동시 트랜잭션 수 = (InnoDB 페이지 크기) / 16 * (롤백 세그먼트 개수) * (언두 테이블스페이스 개수)
+```
+
+- 일반적인 설정인 페이지 16KB InnoDB 기본 설정(`innodb_undo_tablespaces=2`, `innodb_rollback_segments=128`)을 적용하면?  
+
+```
+16(KB) * 1024(Byte) / 16(Byte) * 128(128개 롤백 세그먼트) * 2(2개의 언두 테이블스페이스) / 2(트랜잭션 하나당 필요한 언두 슬롯 2개) = 131,072
+```
+
+- 131,072개 정도의 트랜잭션이 동시에 처리 가능해진다.
+
+- 언두 테이블스페이스 공간을 필요한 만큼만 남기고 불필요하거나 과도하게 할당된 공간을 운영체제로 반납하는 것을 `Undo tablespace truncate`라고 한다.
+  - 불필요한 공간을 잘라내기(Truncate) 위해 `자동 모드`와 `수도 모드`를 사용할 수 있다. 
+
+### 2-10. 체인지 버퍼
+
+- 레코드가 `INSERT`되거나 `UPDATE`될 때는 데이터 파일을 변경하는 작업뿐 아니라 해당 테이블에 포함된 인덱스를 업데이트하는 작업도 필요하다.
+  - 변경해야 할 인덱스 페이지가 버퍼 풀에 있으면 바로 업데이트를 수행하지만 그렇지 않고 디스크로부터 읽어와서 업데이트해야 한다면 이를 즉시 실행하지 않고 임시 공간에 저장해 두고 바로 사용자에게 결과를 반환하는 형태로 성능을 향상시킨다.
+  - 이때 사용하는 임시 메모리 공간을 `체인지 버퍼 Change Buffer`라고 한다.
+- 유니크 인덱스는 체인지 버퍼를 사용할 수 없다.
+- 체인지 버퍼에 임시로 저장된 인덱스 레코드 조각은 이후 백그라운드 스레드에 의해 병합되는데, 이 스레드를 `체인지 버퍼 머지 스레드 Change Buffer Merge Thread`라고 한다.
+- `innodb_change_buffering`을 통해 작업의 종류별로 체인지 버퍼를 활성화할 수 있다.
+  - `all`: 모든 인덱스 관련 작업 버퍼링
+  - `none`: 버퍼링 X
+  - `inserts`: 인덱스에 새로운 아이템을 추가하는 작업만 버퍼링
+  - `deletes`: 인덱스에서 기존 아이템을 삭제하는 작업만 버퍼링
+  - `changes`: 추가하고 삭제하는 작업만 버퍼링 (`inserts` + `deletes`)
+  - `purges`: 영구적으로 삭제하는 작업만 버퍼링
+- 체인지 버퍼는 보통 InnoDB 버퍼 풀로 설정된 메모리 공간의 25%까지 사용할 수 있게 설정돼 있으며, 필요하다면 InnoDB 버퍼 풀의 50%까지 사용하게 설정할 수 있다.
+
+```shell
+-- // 체인지 버퍼가 사용 중인 메모리 공간의 크기
+mysql> SELECT EVENT_NAME, CURRENT_NUMBER_OF_BYTES_USED
+      FROM performance_schema.memory_summary_global_by_event_name
+      WHERE EVENT_NAME='memory/innodb/ibuf0ibuf';
++-------------------------+------------------------------+
+| EVENT_NAME              | CURRENT_NUMBER_OF_BYTES_USED |
++-------------------------+------------------------------+
+| memory/innodb/ibuf0ibuf |                          144 |
++-------------------------+------------------------------+
+1 row in set (0.01 sec)
+```
+
+
+```shell
+-- // 체인지 버퍼 관련 오퍼레이션 처리 횟수
+SHOW ENGINE INNODB STATUS \G
+*************************** 1. row ***************************
+  Type: InnoDB
+  Name:
+Status:
+=====================================
+2024-11-18 12:47:17 281472495042304 INNODB MONITOR OUTPUT
+=====================================
+Per second averages calculated from the last 0 seconds
+-----------------
+BACKGROUND THREAD
+-----------------
+srv_master_thread loops: 1 srv_active, 0 srv_shutdown, 44 srv_idle
+srv_master_thread log flush and writes: 0
+----------
+SEMAPHORES
+----------
+OS WAIT ARRAY INFO: reservation count 17
+OS WAIT ARRAY INFO: signal count 17
+RW-shared spins 0, rounds 0, OS waits 0
+RW-excl spins 0, rounds 0, OS waits 0
+RW-sx spins 0, rounds 0, OS waits 0
+Spin rounds per wait: 0.00 RW-shared, 0.00 RW-excl, 0.00 RW-sx
+------------
+TRANSACTIONS
+------------
+Trx id counter 2318
+Purge done for trx's n:o < 2315 undo n:o < 0 state: running but idle
+History list length 5
+LIST OF TRANSACTIONS FOR EACH SESSION:
+---TRANSACTION 562947658636504, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 562947658635696, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 562947658634888, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+--------
+FILE I/O
+--------
+I/O thread 0 state: waiting for completed aio requests (insert buffer thread)
+I/O thread 1 state: waiting for completed aio requests (read thread)
+I/O thread 2 state: waiting for completed aio requests (read thread)
+I/O thread 3 state: waiting for completed aio requests (read thread)
+I/O thread 4 state: waiting for completed aio requests (read thread)
+I/O thread 5 state: waiting for completed aio requests (write thread)
+I/O thread 6 state: waiting for completed aio requests (write thread)
+I/O thread 7 state: waiting for completed aio requests (write thread)
+I/O thread 8 state: waiting for completed aio requests (write thread)
+Pending normal aio reads: [0, 0, 0, 0] , aio writes: [0, 0, 0, 0] ,
+ ibuf aio reads:
+Pending flushes (fsync) log: 0; buffer pool: 0
+1596 OS file reads, 250 OS file writes, 99 OS fsyncs
+0.00 reads/s, 0 avg bytes/read, 0.00 writes/s, 0.00 fsyncs/s
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 0, seg size 2, 0 merges
+merged operations:
+ insert 0, delete mark 0, delete 0
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 34679, node heap has 3 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 1 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+Hash table size 34679, node heap has 0 buffer(s)
+0.00 hash searches/s, 0.00 non-hash searches/s
+---
+LOG
+---
+Log sequence number          32384361
+Log buffer assigned up to    32384361
+Log buffer completed up to   32384361
+Log written up to            32384361
+Log flushed up to            32384361
+Added dirty pages up to      32384361
+Pages flushed up to          32384361
+Last checkpoint at           32384361
+Log minimum file id is       9
+Log maximum file id is       9
+26 log i/o's done, 0.00 log i/o's/second
+----------------------
+BUFFER POOL AND MEMORY
+----------------------
+Total large memory allocated 0
+Dictionary memory allocated 489041
+Buffer pool size   8192
+Free buffers       6995
+Database pages     1193
+Old database pages 460
+Modified db pages  0
+Pending reads      0
+Pending writes: LRU 0, flush list 0, single page 0
+Pages made young 0, not young 0
+0.00 youngs/s, 0.00 non-youngs/s
+Pages read 1050, created 143, written 187
+0.00 reads/s, 0.00 creates/s, 0.00 writes/s
+No buffer pool page gets since the last printout
+Pages read ahead 0.00/s, evicted without access 0.00/s, Random read ahead 0.00/s
+LRU len: 1193, unzip_LRU len: 0
+I/O sum[0]:cur[0], unzip sum[0]:cur[0]
+--------------
+ROW OPERATIONS
+--------------
+0 queries inside InnoDB, 0 queries in queue
+0 read views open inside InnoDB
+Process ID=1, Main thread ID=281472188010240 , state=sleeping
+Number of rows inserted 0, updated 0, deleted 0, read 0
+0.00 inserts/s, 0.00 updates/s, 0.00 deletes/s, 0.00 reads/s
+Number of system rows inserted 8, updated 331, deleted 8, read 4801
+0.00 inserts/s, 0.00 updates/s, 0.00 deletes/s, 0.00 reads/s
+----------------------------
+END OF INNODB MONITOR OUTPUT
+============================
+
+1 row in set (0.00 sec)
+mysql>
+```
+
+### 2-11. 리두 로그 및 로그 버퍼
+
+- 
+
 <br/>
 
 ## 참고자료
