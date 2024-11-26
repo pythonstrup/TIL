@@ -463,7 +463,254 @@ mysql>
 
 ### 2-11. 리두 로그 및 로그 버퍼
 
-- 
+- Redo Log는 트랜잭션의 4가지 요소인 ACID 중에서 D(Durable)에 해당하는 영속성과 가장 밀접하게 연관돼 있다.
+- 리두 로그는 하드웨어나 소프트웨어 등 여러 가지 문제점으로 인해 MySQL 서버가 비정상적으로 종료됐을 때 데이터 파일에 기록되지 못한 데이터를 잃지 않게 해주는 안전장치다.
+- 거의 모든 DBMS에서 데이터 파일은 쓰기보다 읽기 성능을 고려한 자료 구조를 가지고 있기 때문에 데이터 파일 쓰기는 디스크의 랜덤 액세스가 필요하다.
+  - 변경된 데이터 기록 => 상대적으로 큰 비용 => 성능 저하를 막기 위해 데이터베이스 서버는 쓰기 비용이 낮은 자료 구조를 가진 리두 로그를 가지고 있다.
+  - 리두 로그를 버퍼링할 수 있는 InnoDB 버퍼 풀이나, 리두 로그를 버퍼링할 수 있는 로그 버퍼와 같은 자료 구조도 가지고 있다.
+- MySQL 비정상 종료 시 InnoDB 스토리지 엔진의 데이터 파일은 다음과 같은 두 가지 종류의 일관되지 않은 데이터를 가질 수 있다.
+1. 커밋됐지만 데이터 파일에 기록되지 않은 데이터
+2. 롤백됐지만 데이터 파일에 이미 기록된 데이터
+
+- 1번의 경우 리두 로그에 저장된 데이터를 데이터 파일에 다시 복사하기만 하면 된다.
+- 2번의 경우 리두 로그로 해결할 수 없는데, 이때는 변경되기 전 데이터를 가진 언두 로그의 내용을 가져와 데이터 파일에 복사하면 된다.
+  - 이 경우 리두 로그도 쓸모가 있다. 최소한 그 변경이 커밋됐는지, 롤백됐는지, 아니면 트랜잭션의 실행 중간 상태였는지를 확인하기 위해서라도 필요하다.
+- 리두 로그는 트랜잭션이 커밋되면 즉시 디스크로 기록되도록 시스템 변수를 설정하는 것을 권장한다.
+  - 직전가지의 트랜잭션 커밋 내용이 리두 로그에 기록. => 장애 직전 시점까지의 복구가 가능해진다.
+
+> #### 참고
+> - ACID는 데이터베이스에서 트랜잭션의 무결성을 보장하기 위해 꼭 필요한 4가지 요소를 의미한다.
+> - `A`: Atomic의 첫 글자로, 트랜잭션은 원자성 작업이어야 함을 의미한다.
+> - `C`: Consistent의 첫 글자로, 일관성을 의미한다.
+> - `I`: Isolated의 첫 글자로, 격리성을 의미한다.
+> - `D`: Durable의 첫 글자이며, 한 번 저장된 데이터는 지속적으로 유지돼야 함을 의미한다.
+
+#### 2-11-1. 리두 로그 아카이빙
+
+- MySQL 8.0부터 InnoDB 스토리지 엔진의 리두 로그를 아카이빙할 수 있는 기능이 추가됐다.
+  - 데이터 변경이 많아서 리두 로그가 덮어쓰인다고 하더라도 백업이 실패하지 않게 해준다.
+- `innodb_redo_log_archive_start` UDF(사용자 정의 함수: User Defined Function)를 실행하면 된다.
+
+#### 2-11-2. 리두 로그 활성화 및 비활성화
+
+- MySQL 8.0부터 수동으로 리두 로그를 활성화하거나 비활성화할 수 있게 됐다.
+- 그래서 데이터를 복구하거나 대용량 데이터를 한번에 적재하는 경우 다음과 같이 리두 로그를 비활성화해서 데이터의 적재 시간을 단축시킬 수 있다.
+
+```shell
+# 리두 로그 비활성화
+mysql> ALTER INSTANCE DISALBE INNODB REDO_LOG;
+
+# 리두 로그 활성화
+mysql> ALTER INSTANCE ENABLE INNODB REDO_LOG;
+```
+
+- 또한 상태 변수를 통해 활성화됐는지 확인할 수 있다.
+
+```shell
+mysql> SHOW GLOBAL STATUS LIKE 'Innodb_redo_log_enabled';
+```
+
+- 리두 로그 활성화를 잊지 말자. 서버가 비정상적으로 종료된다면, 마지막 체크포인트 이후 시점의 데이터는 모두 복구할 수 없게 된다.
+
+### 2-12. 어댑티브 해시 인덱스
+
+- 일반적으로 '인덱스'라고 하면 테이블에 사용자가 생성해둔 B-Tree 인덱스를 의미.
+- 하지만 여기서 언급하는 `어댑티브 해시 인덱스 Adaptive Hash Index`는 사용자가 수동으로 생성하는 인덱스가 아니라 InnoDB 스토리지 엔진에서 사용자가 자주 요청하는 데이터에 대해 자동으로 생성하는 인덱스이다.
+  - 사용자는 `innodb_adaptive_hash_index` 시스템 변수를 이용해서 어댑티브 해시 인덱스 기능을 활성화하거나 비활성화할 수 있다.
+- 어댑티브 해시 인덱스는 B-Tree 검색 시간을 줄여주기 위해 도입된 기능이다.
+  - InnoDB 스토리지 엔진은 자주 읽히는 데이터 페이지의 키 값을 이용해 해시 인덱스를 만들고, 필요할 때마다 어댑티브 해시 인덱스를 검색해서 레코드가 저장된 데이터 페이지를 즉시 찾아갈 수 있다.
+  - B-Tree는 루트 노드부터 리프 노드까지 찾아가는 비용이 없어지고 그만큼 CPU는 적은 일을 하지만 쿼리의 성능은 빨라진다.
+  - 그와 동시에 컴퓨터는 더 많은 쿼리를 동시에 처리할 수 있게 된다.
+- 인덱스 키 값은 'B-Tree 인덱스의 고유번호(Id)와 B-Tree 인덱스의 실제 키 값' 조합으로 생성된다.
+  - B-Tree 인덱스의 고유번호가 존재하는 이유는 어댑티브 해시 인덱스가 하나만 존재하기 때문이다.
+  - 모든 B-Tree 인덱스에 대한 것이 하나에 다 저장된다는 의미.
+- 어댑티브 해시 인덱스를 활성화하면 쿼리의 처리량은 2배 가까이 늘어남에도 불구하고, CPU 사용량은 줄어드는 기적을 볼 수 있다.ㄴ
+- MySQL 8.0부터는 내부 잠금(세마포어) 경합을 줄이기 위해 어댑티브 해시 인덱스의 파티션 기능을 제공한다.
+- 하지만 성능 향상에 크게 도움이 되지 않는 경우도 있다.
+1. 디스크 읽기가 많은 경우
+2. 특정 패턴의 쿼리가 많은 경우(조인이나 LIKE 패턴 검색)
+3. 매우 큰 데이터를 가진 테이블의 레코드를 폭넓게 읽는 경우
+- 반면 다음과 같은 경우 성능 향상에 많은 도움이 된다.
+1. 디스크의 데이터가 InnoDB 버퍼 풀의 크기와 비슷한 경우(디스크 읽기가 많지 않은 경우)
+2. 동등 조건 검색(동등 비교와 IN 연산자)이 많은 경우
+3. 쿼리가 데이터 중에서 일부 데이터에만 집중되는 경우
+- 어댑티브 해시 인덱스는 테이블의 삭제 작업에도 많은 영향을 미친다.
+  - 인덱스가 어댑티브 해시 인덱스에 적재돼 있다면, 이 테이블을 삭제하거나 변경하려고 하면 InnoDB 스토리지 엔진은 이 테이블이 가진 모든 데이터 페이지의 내용을 어댑티브 해시 인덱스에서 제거해야 한다.
+  - 상당히 느려진다.
+- 만약 우리 서비스 패턴에 맞게 도움이 되는지 확인하려면 MySQL 서버의 상태 값들을 살펴보면 된다.
+  - 기본적으로 MySQL 서버에서 어댑티브 해시 인덱스는 기본적으로 활성화돼 있다.
+
+```shell
+> mysql SHOW ENGINE INNODB STATUS;
+
+=====================================
+2024-11-26 11:44:42 140235321083456 INNODB MONITOR OUTPUT
+=====================================
+Per second averages calculated from the last 40 seconds
+-----------------
+BACKGROUND THREAD
+-----------------
+srv_master_thread loops: 1785731 srv_active, 0 srv_shutdown, 6778708 srv_idle
+srv_master_thread log flush and writes: 0
+----------
+SEMAPHORES
+----------
+OS WAIT ARRAY INFO: reservation count 2786511
+OS WAIT ARRAY INFO: signal count 2183433
+RW-shared spins 0, rounds 0, OS waits 0
+RW-excl spins 0, rounds 0, OS waits 0
+RW-sx spins 0, rounds 0, OS waits 0
+Spin rounds per wait: 0.00 RW-shared, 0.00 RW-excl, 0.00 RW-sx
+------------
+TRANSACTIONS
+------------
+Trx id counter 8018943
+Purge done for trx's n:o < 8018942 undo n:o < 0 state: running but idle
+History list length 11
+LIST OF TRANSACTIONS FOR EACH SESSION:
+---TRANSACTION 421711358989848, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358989040, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358983384, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358988232, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358987424, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358986616, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358985808, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358985000, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358984192, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358982576, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+---TRANSACTION 421711358981768, not started
+0 lock struct(s), heap size 1128, 0 row lock(s)
+--------
+FILE I/O
+--------
+I/O thread 0 state: waiting for completed aio requests (insert buffer thread)
+I/O thread 1 state: waiting for completed aio requests (read thread)
+I/O thread 2 state: waiting for completed aio requests (read thread)
+I/O thread 3 state: waiting for completed aio requests (read thread)
+I/O thread 4 state: waiting for completed aio requests (read thread)
+I/O thread 5 state: waiting for completed aio requests (write thread)
+I/O thread 6 state: waiting for completed aio requests (write thread)
+I/O thread 7 state: waiting for completed aio requests (write thread)
+I/O thread 8 state: waiting for completed aio requests (write thread)
+Pending normal aio reads: [0, 0, 0, 0] , aio writes: [0, 0, 0, 0] ,
+ ibuf aio reads:
+Pending flushes (fsync) log: 0; buffer pool: 0
+1237797 OS file reads, 47360252 OS file writes, 35534321 OS fsyncs
+0.00 reads/s, 0 avg bytes/read, 3.08 writes/s, 2.74 fsyncs/s
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 9, seg size 11, 29892 merges
+merged operations:
+ insert 62654, delete mark 374, delete 193
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 34679, node heap has 12 buffer(s)
+Hash table size 34679, node heap has 9 buffer(s)
+Hash table size 34679, node heap has 3 buffer(s)
+Hash table size 34679, node heap has 2 buffer(s)
+Hash table size 34679, node heap has 15 buffer(s)
+Hash table size 34679, node heap has 4 buffer(s)
+Hash table size 34679, node heap has 1 buffer(s)
+Hash table size 34679, node heap has 10 buffer(s)
+0.40 hash searches/s, 0.20 non-hash searches/s
+---
+LOG
+---
+Log sequence number          9893385365
+Log buffer assigned up to    9893385365
+Log buffer completed up to   9893385365
+Log written up to            9893385365
+Log flushed up to            9893385365
+Added dirty pages up to      9893385365
+Pages flushed up to          9893384602
+Last checkpoint at           9893384602
+Log minimum file id is       3019
+Log maximum file id is       3021
+17707693 log i/o's done, 1.30 log i/o's/second
+----------------------
+BUFFER POOL AND MEMORY
+----------------------
+Total large memory allocated 0
+Dictionary memory allocated 2074049
+Buffer pool size   8192
+Free buffers       1024
+Database pages     7112
+Old database pages 2605
+Modified db pages  0
+Pending reads      0
+Pending writes: LRU 0, flush list 0, single page 0
+Pages made young 986972, not young 90673848
+0.00 youngs/s, 0.00 non-youngs/s
+Pages read 1211217, created 308654, written 21573281
+0.00 reads/s, 0.00 creates/s, 1.23 writes/s
+Buffer pool hit rate 1000 / 1000, young-making rate 0 / 1000 not 0 / 1000
+Pages read ahead 0.00/s, evicted without access 0.00/s, Random read ahead 0.00/s
+LRU len: 7112, unzip_LRU len: 0
+I/O sum[56]:cur[6], unzip sum[0]:cur[0]
+--------------
+ROW OPERATIONS
+--------------
+0 queries inside InnoDB, 0 queries in queue
+0 read views open inside InnoDB
+Process ID=1, Main thread ID=140235891525184 , state=sleeping
+Number of rows inserted 33198221, updated 2851206, deleted 39040, read 171845743
+0.00 inserts/s, 0.20 updates/s, 0.00 deletes/s, 0.20 reads/s
+Number of system rows inserted 2010761, updated 54214, deleted 2005715, read 2523528
+0.20 inserts/s, 0.00 updates/s, 0.00 deletes/s, 0.00 reads/s
+----------------------------
+END OF INNODB MONITOR OUTPUT
+============================
+
+```
+
+- 위의 내용 중에 특히 아래의 내용이 중요하다.
+
+```shell
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 9, seg size 11, 29892 merges
+merged operations:
+ insert 62654, delete mark 374, delete 193
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 34679, node heap has 12 buffer(s)
+Hash table size 34679, node heap has 9 buffer(s)
+Hash table size 34679, node heap has 3 buffer(s)
+Hash table size 34679, node heap has 2 buffer(s)
+Hash table size 34679, node heap has 15 buffer(s)
+Hash table size 34679, node heap has 4 buffer(s)
+Hash table size 34679, node heap has 1 buffer(s)
+Hash table size 34679, node heap has 10 buffer(s)
+0.40 hash searches/s, 0.20 non-hash searches/s
+```
+
+- 초당 0.6(0.4 + 0.2)의 검색이 실행. 0.4번은 어댑티브 해시 인덱스를 사용했으며, 0.2번은 사용하지 못했다.
+- 효율은 검색 횟수가 아니라 두 값의 비율과 어댑티브 해시 인덱스가 사용 중인 메모리 공간, 그리고 서버의 CPU 사용량을 종합해서 판단해야 한다.
+  - 예를 들어 CPU의 사용률이 높지 않은데, 히트율이 30% 정도라면 비활성화하는 편이 더 나을 수 있다. => InnoDB 버퍼 풀이 더 많은 메모리를 사용할 수 있게 유도.
+- 아래는 메모리 사용량을 확인하는 방법이다.
+
+```shell
+mysql> SELECT EVENT_NAME, CURRENT_NUMBER_OF_BYTES_USED
+    FROM performance_schema.memory_summary_global_by_event_name
+    WHERE EVENT_NAME='memory/innodb/adaptive hash index';
+```
+
+### 2-13. InnoDB와 MyISAM, MEMORY 스토리지 엔진 비교
+
+- InnoDB 스토리지 엔진의 기능이 개선되는 만큼 MyISAM 스토리지 엔진의 기능은 도태되는 상황이다.
+- 때로 MEMORY 스토리지 엔진이 'MEMORY'라는 이름 때문에 과대평가를 받는 경우가 있지만, MEMORY 스토리지 엔진 또한 동시 처리 성능에 있어서 InnoDB 스토리지 엔진을 따라갈 수 없다.
 
 <br/>
 
