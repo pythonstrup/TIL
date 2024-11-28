@@ -225,10 +225,12 @@ UPDATE my_table SET agree_yn='Y' WHERE nickname='park' AND age=26;
 
 <br/>
 
-## 격리 수준 Isolation Level
+## 4. MySQL의 격리 수준 Isolation Level
 
 - 격리 수준이란 여러 트랜잭션이 동시에 처리될 때 특정 트랜잭션이 다른 트랜잭션에서 변경하거나 조회하는 데이터를 볼 수 있게 허용할지 말지를 결정하는 것이다.
-- 격리 수준에는 `READ UNCOMMITTED`, `READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABEL` 4가지가 있다.
+- 격리 수준에는 `READ UNCOMMITTED`, `READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABLE` 4가지가 있다.
+  - 뒤로 갈수록 트랜잭션 간의 데이터 격리(고립) 정도가 높아지며, 동시 처리 성능도 떨어지는 것이 일반적이다.
+  - 사실 `SERIALIZABLE`이 아니라면 크게 성능의 개선이나 저하는 발생하지 않는다.
 
 <table>
     <thead>
@@ -256,40 +258,70 @@ UPDATE my_table SET agree_yn='Y' WHERE nickname='park' AND age=26;
         <td>O (InnoDB는 없다.)</td>
     </tbody>
     <tbody>
-        <th>SERIALIZABEL</th>
+        <th>SERIALIZABLE</th>
         <td>X</td>
         <td>X</td>
         <td>X</td>
     </tbody>
 </table>
 
+- SQL-92 또는 SQL-99 표준에 따르면 `REPEATABLE READ` 격리 수준에서는 `PHANTOM READ`가 발생할 수 있지만, InnoDB의 특성 덕분에 `PHANTOM READ`가 발생하지 않는다.
+- 일반적인 온라인 서비스 용도의 데이터베이스는 `READ COMMITTED`나 `REFEATABLE READ` 중 하나를 사용한다.
+  - 오라클: `READ COMMITTED`
+  - MySQL:`REFEATABLE READ`
+
 ### READ UNCOMMITTED
 
 - `DIRTY READ`라고도 불리며 일반적인 데이터베이스에서는 거의 사용하지 않는다.
 - 커밋되지 않은 상태의 내용을 그대로 조회할 수 있다. 이렇게 처리한 작업이 완료되지 않았는데도 다른 트랜잭션에서 볼 수 있는 현상을 더티 리드(Dirty Read)라고 한다.
 - `READ UNCOMMITTED`는 RDBMS 표준에서도 트랜잭션 격리 수준으로 인정하지 않을 정도로 정합성에 문제가 많은 격리 수준이다.
+  - MySQL을 사용한다면 최소한 `READ COMMITTED` 이상의 격리 수준을 사용할 것을 권장한다.
 
 ### READ COMMITTED
 
 - 오라클 DBMS에서의 기본 격리수준이다. 또한, 온라인 서비스에서 가장 많이 선택하는 격리 수준이다.
+- 더티 리드 같은 현상은 발생하지 않는다. 어떤 트랜잭션이 데이터를 변경했더라도 `COMMIT`이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있기 때문이다.
 - 트랜잭션에 의해 변경되고 있는 테이블을 조회할 때 변경한 내용이 담겨있는 테이블이 아니라 언두 영역에 백업된 레코드를 가져온다.
-  - MVCC(Multi Version Concurrency Control)를 이용해 COMMIT되기 전의 데이터를 보여줄 수 있다.
-- 하지만 하나의 트랜잭션에서 반복적인 SELECT를 한다고 가정했을 때 항상 같은 결과가 반환되지 않는 NON-REPEATABLE READ 문제가 발생할 수 있다.
-- 만약 해당 문제로 인해 부정합이 발생했을 때, 금전적인 처리와 연관되어 있다면 치명적인 문제가 될 수 있다.
+  - `MVCC (Multi Version Concurrency Control)`를 이용해 `COMMIT`되기 전의 데이터를 보여줄 수 있다.
+- 하지만 하나의 트랜잭션에서 특정 테이블에 대하여 반복적인 `SELECT`를 한다고 가정했을 때, 항상 같은 결과가 반환되지 않는 `NON-REPEATABLE READ` 문제가 발생할 수 있다.
+  - 하나의 트랜잭션 내에서 똑같은 `SELECT` 쿼리를 실행했을 때는 항상 같은 결과를 가져와야 한다면 `REPEATABLE READ` 정합성에 어긋나는 것이다.
+- 만약 해당 문제로 인해 부정합이 발생했을 때, 일반적인 웹 프로그램에서는 크게 문제가 되지 않는다. 
+  - 하지만 금전적인 처리와 연관되어 있다면 치명적인 문제가 될 수 있다.
 
 ### REPEATABLE READ 
 
 - MySQL InnoDB의 기본 설정 수준이다.
-- InnoDB 스토리지 엔진은 트랜잭션이 ROLLBACK될 가능성에 대비해 변경되기 전 레코드를 언두 영역에 백업하고 실제 레코드 값을 변경한다.
-  - `READ COMMITTED`는 COMMIT되기 전 언두 영역에 백업된 레코드를 보여주지만 커밋되면 테이블의 내용을 그대로 조회한다. 
-  - `REPEATABLE READ`는 MVCC를 통해 언두 영역에 백업된 이전 데이터를 이용하고 동일 트랜잭션 내에서는 동일한 결과를 보여줄 수 있게 보장한다.
-- Undo 영역에 백업된 모든 레코드에는 변경을 발생시킨 트랜잭션의 번호가 포함돼 있다. 그리고 백업된 데이터는 InnoDB 스토리지 엔진이 불필요하다고 판단하는 시점에 주기적으로 삭제한다.
-- `REPEATABLE READ` 격리 수준에서는 MVCC를 보장하기 위해 실행 중인 트랜잭션 중 가장 오래된 트랜잭션 번호보다 트랜잭션의 번호가 앞서는 언두 영역의 데이터를 삭제할 수 없다.
+  - 바이너리 로그를 가진 MySQL 서버에서는 최소 `REPEATABLE READ` 격리 수준 이상을 사용해야 한다.
+- `READ COMMITTED`와의 차이점?
+  - `READ COMMITTED`는 `COMMIT`되기 전 언두 영역에 백업된 레코드를 보여주지만 커밋되면 테이블의 내용을 그대로 조회한다.
+  - `REPEATABLE READ`는 `MVCC`를 통해 언두 영역에 백업된 이전 데이터를 이용하고 동일 트랜잭션 내에서는 동일한 결과를 보여줄 수 있게 보장한다.
+- InnoDB 스토리지 엔진은 트랜잭션이 `ROLLBACK`될 가능성에 대비해 변경되기 전 레코드를 언두 영역에 백업하고 실제 레코드 값을 변경한다.
+  - 이런 변경 방식을 `MVCC`라고 한다.
+  - `REFEATABLE READ`는 이 `MVCC`를 위해 언두 영역에 백업된 이전 데이터를 이용해 동일 트랜잭션 내에서는 동일한 결과를 보여줄 수 있게 보장한다.
+- 모든 InnoDB의 트랜잭션은 고유한 트랜잭션 번호(순차적으로 증가하는 값)를 가지며, 언두 영역에 백업된 모든 레코드에는 변경을 발생시킨 트랜잭션의 번호가 포함돼 있다.
+  - 그리고 언두 영역에 백업된 데이터는 InnoDB 스토리지 엔진이 불필요하다고 판단하는 시점에 주기적으로 삭제한다.
+  - `REPEATABLE READ` 격리 수준에서는 `MVCC`를 보장하기 위해 실행 중인 트랜잭션 중 가장 오래된 트랜잭션 번호보다 트랜잭션의 번호가 앞서는 언두 영역의 데이터를 삭제할 수 없다.
+  - 그렇다고 가장 오래된 트랜잭션 번호 이전의 트랜잭션에 의해 변경된 모든 언두 데이터가 필요한 것은 아니다. 더 정확하게는 특정 트랜잭션 번호의 구간 내에서 백업된 언두 데이터가 보존돼야 한다.
+- 하나의 레코드에 대해 백업이 하나 이상 존재할 수 있다.
+  - 한 사용자가 BEGIN으로 트랜잭션을 시작하고 장시간 트랜잭션을 종료하지 않으면 언두 영역이 백업된 데이터로 무한정 커질 수도 있다.
+  - 언두에 백업된 레코드가 많아지면 MySQL 서버의 처리 성능이 떨어질 수 있다.
+- `REPEATABLE READ` 격리 수준에서도 다음과 같은 부정합이 발생할 수 있다.
+  - 아래 예시는 `PHANTOM READ`다.
+  - `FOR UPDATE` 쿼리는 `SELECT` 하는 레코드에 쓰기 잠금을 걸어야 하는데, 언두 레코드에는 잠금을 걸 수 없다.
+  - 그래서 `SELECT ... FOR UPDATE`나 `SELECT ... LOCK IN SHARE MODE`로 조회되는 레코드는 언두 영역의 변경 전 데이터를 가져오는 것이 아니라 현재 레코드의 값을 가져오게 되는 것이다.
+
+<img src="img/isolation_level01.jpg">
     
 ### SERIALIZABLE
 
 - 가장 단순하고 엄격한 격리 수준이다. 그만큼 속도가 많이 느리다. 동시성이 중요한 데이터베이스에서는 거의 사용되지 않는다.
-- 그래도 InnoDB 테이블에서 순수한 SELECT 문을 실행했을 때 잠금을 하지는 않는다. (Non-locking consistent read: 잠금이 필요 없는 일관된 읽기)
+- - 그래도 InnoDB 테이블에서 순수한 SELECT 문을 실행했을 때 잠금을 하지는 않는다. (Non-locking consistent read: 잠금이 필요 없는 일관된 읽기)
+- `SERIALIZABLE`로 설정되면 읽기 작업도 공유 잠금(읽기 잠금)을 획득해야만 하며, 동시에 다른 트랜잭션은 그러한 레코드를 변경하지 못하게 된다.
 - InnoDB 스토리지 엔진에서는 갭 락과 넥스트 키락 덕분에 `REPEATABLE READ` 격리 수준에서도 `PHANTOM READ`가 발생하지 않기 때문에 굳이 `SERIALIZABLE`를 사용할 이유가 없는 것 같다.
 
 <br/>
+
+
+## 참고자료
+
+- Real MySQL 8.0
