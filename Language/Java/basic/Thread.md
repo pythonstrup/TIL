@@ -22,7 +22,7 @@
 - Java에서는 기본적으로 Thread를 상속하고 구현한 객체를 `new`로 할당할 수 있다.
 - run 메소드를 오버라이드해 구현해야한다.
 
-<img src="imghread1.png" />
+<img src="img/thread1.png" />
 
 ### 기본 메소드
 
@@ -113,6 +113,9 @@ public class Main {
 
 ### Callable
 
+- Java5부터 추가된 기능으로 `Runnable`의 발전된 형태이다.
+- 제너릭을 사용해 결과값을 받을 수 있는 객체이다.
+
 ```java
 @FunctionalInterface
 public interface Callable<V> {
@@ -120,10 +123,12 @@ public interface Callable<V> {
 }
 ```
 
-- Java5부터 추가된 기능으로 `Runnable`의 발전된 형태이다. 
-- 제너릭을 사용해 결과값을 받을 수 있는 객체이다.
-
 ### Future
+
+- Java5부터 사용.
+- 스레드의 작업은 기본적으로 비동기로 실행되기 때문에 실행 결과를 바로 얻지 못하고 예상치 못한 시점에 결과값을 받게 된다. (가용가능한 스레드가 없으면 더 늦춰지기도 한다.)
+- 미래에 완료된 `Callable`의 반환값을 받기 위해 사용되는 것이 `Future`다. (javascript의 `await` 역할을 해줄 수 있다.)
+- `ExecutorService`에서 `submit()` 메소드를 활용하면 `Future` 객체로 결과값을 받아올 수 있다.
 
 ```java
 public interface Future<V> {
@@ -141,9 +146,47 @@ public interface Future<V> {
 }
 ```
 
-- 스레드의 작업은 기본적으로 비동기로 실행되기 때문에 실행 결과를 바로 얻지 못하고 예상치 못한 시점에 결과값을 받게 된다. (가용가능한 스레드가 없으면 더 늦춰지기도 한다.)
-- 미래에 완료된 `Callable`의 반환값을 받기 위해 사용되는 것이 `Future`다. (javascript의 `await` 역할을 해줄 수 있다.)
-- `ExecutorService`에서 `submit()` 메소드를 활용하면 `Future` 객체로 결과값을 받아올 수 있다.
+- 하지만 여러 `Future`의 결괏값을 조합하거나, 예외를 효과적으로 핸들링할 수가 없다.
+- 그리고 Future는 오직 get 호출로만 작업 완료가 가능한데, get은 작업이 완료될 때까지 대기하는 블로킹 호출이므로 비동기 작업 응답에 추가 작업을 하기 적합하지 않다.
+
+### CompletableFuture
+
+- Java8에서는 이런 문제들을 모두 해결한 `CompletableFuture`가 소개되었다.
+
+```java
+public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {...}
+```
+
+- `CompletableFuture` 클래스는 `Future` 인터페이스를 구현함과 동시에 `CompletionStage` 인터페이스를 구현한다.
+  - `CompletionStage`의 특징을 살펴보면 `CompletableFuture`의 장점을 알 수 있다.
+- `CompletionStage`는 결국은 계산이 완료될 것이라는 의미의 약속이다.
+  - 계산의 완료는 단일 단계의 완료뿐만 아니라 다른 여러 단게 혹은 다른 여러 단계 중의 하나로 이어질 수 있음도 포함한다.
+  - 또한, 각 단계에서 발생한 에러를 관리하고 전달할 수 있다.
+
+#### 기본 사용법
+
+- `runAsync`는 반환 값이 없는 경우의 비동기 작업을 실행한다.
+
+```java
+CompletableFuture<Void> cf = CompletableFuture.runAsync(() -> System.out.println("Hello"));
+cf.join(); // 실행된다.
+```
+
+- `supplyAsync`는 반환 값이 있을 때 비동기 작업을 실행한다.
+
+```java
+CompletableFuture<File> cf = CompletableFuture.runAsync(() -> saveFile(myFile));
+File file = cf.join();
+```
+
+#### get과 join
+
+- `get`
+  - `Future` 인터페이스에 정의된 메소드다. 
+  - Checked Exception인 `InterruptedException`과 `ExecutionException`을 던지므로 예외 처리 로직이 필요하다.
+- `join`
+  - `CompletableFuture` 인터페이스에 정의되어 있다.
+  - Unchecked Exception인 `CompletionException`이 발생한다.
 
 <br/>
 
@@ -151,7 +194,7 @@ public interface Future<V> {
 
 - 객체 간의 관계
 
-<img src="imghread2.jpeg">
+<img src="img/thread2.jpeg">
 
 ### Executor
 
@@ -207,11 +250,11 @@ class MyExecutor implements Executor {
 - 예를 들어, 기존 `Executor.execute()` 메소드는 결과값에 전혀 관심이 없었지만, `ExecutorService`는 Future 형태로 작업을 묶어 작업이 완료된 후의 결과값을 획득하는 메소드를 지원해준다.
 - 아래 그림과 같이 `ExecutorService`는 Thread Pool과 Blocking Queue로 구성되어 있다. Task들이 제출(Submit)되면 Queue에 입력되고 순차적으로 쓰레드에 할당된다. 만약 쓰레드 풀의 쓰레드가 전부 대여 중이라면 Task는 Queue 안에서 머물게 된다. 
 
-<img src="imghread3.jpeg">
+<img src="img/thread3.jpeg">
 
 - Task가 Queue에서 대기하고 있다가 Thread1과 Thread2에서 순차적으로 처리되는 것을 확인할 수 있다.
 
-<img src="imghread4.gif">
+<img src="img/thread4.gif">
 
 - ExecutorService에서 
 
@@ -272,32 +315,32 @@ public interface ExecutorService extends Executor {
   - `isTerminated()`
   - `awaitTermination()`
 
-- `submit()` 메소드로 `Future`를 생성하고 비동기 작업을 처리하는 실행하는 예시이다.
-- 아래와 같이 `submit()` 안에 `Callable` 구현체가 아닌 람다식을 넣어 처리할 수도 있다.
+- `CompletableFuture`를 통해 비동기를 처리하는 로직이다.
+  - `supplyAsync`에 생성한 ThreadPool을 전달하여 비동기로 처리할 수 있다.
+  - `allOf`는 List<Future<?>>가 한꺼번에 실행되게 해준다.
 
 ```java
 public class FileService {
   public List<File> uploadFile(List<MultipartFile> multipartFiles) {
     ExecutorService executorService = Executor.newFixedThreadPool(20);
-    List<Future<File>> futureList = multipartFiles.stream()
-            .map(file -> executorService.submit(() -> save(file)));
 
-    List<File> uploadFiles = new ArrayList<>();
-    for (Future<File> future : futureList) {
-      try {
-        File file = future.get();
-        uploadFiles.add(file);
-      } catch (ExecutionException e) {
-        e.printStackTrace();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
+    try {
+      List<Future<File>> futures = multipartFiles.stream()
+              .map(file -> CompletableFuture.supplyAsync(() -> save(file), executorService))
+              .toList();
+
+      CompletableFuture<List<File>> allOf =
+              CompletableFuture
+                      .allOf(futures.toArray(new CompletableFuture[futures.size()]))
+                      .thenApply(v -> futures.stream()
+                              .map(CompletableFuture::join)
+                              .collect(Collectors.toList()));
+      return allOf.join();
+    } finally {
+      // 해당 executorService를 다른 곳에서 사용할 것이 아니라면 shutdown 메소드로 종료해줘야 한다.
+      // 그렇지 않으면 해당 프로세스가 끝나지 않고 계속해서 다음 작업을 기다리게 된다.
+      executorService.shutdown();
     }
-    
-    // 해당 executorService를 다른 곳에서 사용할 것이 아니라면 shutdown 메소드로 종료해줘야 한다.
-    // 그렇지 않으면 해당 프로세스가 끝나지 않고 계속해서 다음 작업을 기다리게 된다.
-    executorService.shutdown();
-    return uploadFiles;
   }
   
   private File save(MultipartFile file) {
@@ -326,3 +369,4 @@ public class FileService {
 - [[Java] Callable, Future 및 Executors, Executor, ExecutorService, ScheduledExecutorService에 대한 이해 및 사용법](https://mangkyu.tistory.com/259) 
 - [Java Concurrency: Executor와 Callable/Future](https://javacan.tistory.com/entry/134)
 - [[JAVA8 병렬프로그래밍] Executors 클래스, ExecutorService 인터페이스](https://devfunny.tistory.com/807)
+- [[Java] CompletableFuture 사용법](https://dev-coco.tistory.com/185)
