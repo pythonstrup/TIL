@@ -251,6 +251,352 @@ public class UserDaoTest  {
 #### 픽스처
 
 - 테스트를 수행하는 데 필요한 정보나 오브젝트를 `픽스처 Fixture`라고 한다.
+- 개인적으로 픽스처 사용을 자제하자는 주의 => DAMP에 어긋난다.
+
+## 4. 스프링 테스트 적용
+
+- 애플리케이션 컨텍스트 생성 방식.
+  - 현재 구조로는 `@Before`가 메소드 개수만큼 반복되기 때문에 애플리케이션 컨텍스트도 세 번 만들어진다.
+  - 메소드 수가 늘어나는만큼 애플리케이션 컨텍스트를 생성? => 나중에는 엄청나게 많은 시간이 필요해질 것이다.
+- 애플리케이션 컨텍스트는 초기화되고 나면 내부의 상태가 바뀌는 일은 거의 없다.
+  - 빈은 싱글톤으로 만들었기 때문에 상태를 갖지 않는다.
+  - 따라서 한 번만 만들고 여러 테스트가 공유해서 사용해도 된다.
+- 문제는 애플리케이션 컨텍스트를 오브젝트 레벨에 저장해두면 곤란하다는 점인데.
+  - static 변수에 저장해두고 사용? 불편하다. 
+- 스프링이 직접 제공하는 애플리케이션 컨텍스트 테스트 지원 기능을 사용하는 것이 더 편리하다.
+
+### 4-1. 테스트를 위한 애플리케이션 컨텍스트 관리
+
+- 스프링은 테스트 컨텍스트 프레임워크를 제공한다.
+- 테스트 컨텍스트의 지원을 받으면 간단한 어노테이션 설정만으로 테스트에서 필요로 하는 애플리케이션 컨텍스트를 만들어서 모든 테스트가 공유하게 할 수 있다.
+
+#### 스프링 테스트 컨텍스트 프레임워크 적용
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations = "/applicationContext.xml")
+public class UserDaoTest {
+
+  @Autowired
+  private ApplicationContext context;
+
+  private UserDao dao;
+
+  @Before
+  public void setUp() {
+    this.dao = context.getBean("userDao", UserDao.class);
+  }
+  
+  // ...
+}
+```
+
+- `@RunWith`는 JUnit 프레임워크의 테스트 실행 방법을 확장할 때 사용하는 어노테이션이다.
+  - `SpringJUnit4ClassRunner`라는 JUnit용 테스트 컨텍스트 프레임워크 확장 클래스를 지정해주면 JUnit이 테스트를 징행하는 중에 테스트가 사용할 애플리케이션 컨텍스트를 만들고 관리하는 작업을 진행해준다.
+
+#### 테스트 메소드의 컨텍스트 공유
+
+- 아래와 같이 콘솔을 추가해보자.
+
+```java
+@Before
+public void setUp() {
+  this.dao = context.getBean("userDao", UserDao.class);
+  System.out.println(context);
+  System.out.println(dao);
+}
+```
+
+```shell
+org.springframework.context.support.GenericApplicationContext@7c7b252e: startup date [Fri Dec 06 17:45:20 KST 2024]; root of context hierarchy
+org.mobilohas.bell.ch1.user.dao.UserDaoTest@6c2ed0cd
+org.springframework.context.support.GenericApplicationContext@7c7b252e: startup date [Fri Dec 06 17:45:20 KST 2024]; root of context hierarchy
+org.mobilohas.bell.ch1.user.dao.UserDaoTest@5a62b2a4
+```
+
+- 오브젝트 값을 잘 살펴보면, context는 두 번 모두 동일하다.
+- 반면 `userDaoTest`는 매번 주소 값이 다르다.
+  - JUnit은 테스트 메소드를 실행할 때마다 새로운 테스트 오브젝트를 만들기 때문이다.
+  - 따라서 첫 테스트에서 가장 오랜 시간이 걸린다.
+
+#### 테스트 클래스의 컨텍스트 공유
+
+- 여러 개의 테스트 클래스가 모두 같은 설정 파일을 가진 애플리케이션 컨텍스트를 사용한다면, 스트링은 테스트 클래스 사이에서도 애플리케이션 컨텍스트를 공유하게 해준다.
+- 테스트의 성능이 대폭 향상된다.
+
+#### @Autowired
+
+- DI에 사용하는 어노테이션
+- `@Autowired`를 사용하면 굳이 `ApplicationContext` 인스턴스 변수를 통해 `getBean()`으로 빈을 가져올 필요가 없다.
+- 빈이 2개 이상 설정되어 있다면 문제가 발생할 수 있다.
+  - 타입으로 가져올 빈 하나를 선택할 수 없는 경우에는 변수의 이름과 같은 이름의 빈이 있는지 확인한다.
+  - 변수 이름으로도 빈을 찾을 수 없는 경우에는 예외가 발생한다.
+
+### 4-2. DI와 테스트
+
+- 구현체가 아닌 인터페이스로 가져와야 하는 이유가 있다면 무엇일까?
+1. 소프트웨어 개발에서 절대로 바뀌지 않는 것은 없기 때문이다.
+  - 인터페이스를 사용하고 DI를 적용하는 작은 수고를 하지 않을 이유가 없다.
+2. 클래스의 구현 방식은 바뀌지 않는다고 하더라도 인터페이스를 두고 DI를 적용하게 해두면 다른 차원의 서비스 기능을 도입할 수 있기 때문이다.
+3. 테스트 때문이다.
+  - 단지 효율적인 테스트를 손쉽게 만들기 위해서라도 DI를 적용해야 한다.
+
+#### 테스트 코드에 의한 DI
+
+- DI는 애플리케이션 컨텍스트 같은 스프링 컨테이너에서만 할 수 있는 작업은 아니다.
+- 애플리케이션이 사용할 `applicationContext.xml`에 정의된 `DataSource` 빈은 서버의 DB 풀 서비스와 연결해서 운영용 DB 커넥션을 돌려주도록 만들어져 있다고 해보자.
+  - 테스트할 때 이 설정을 사용하면 대참사다. 만약 `deleteAll()`과 같이 위험한 함수가 실행되어 버린다면?
+- 테스트용 DB에 연결해주는 `DataSource`를 테스트 내에서 직접 만들 수 있다.
+  - `DataSource` 구현 클래스는 스프링이 제공하는 가장 빠른 `DataSource`인 `SingleConnectionDataSource`를 사용하면 된다.
+  - 커넥션을 하나만 만들어두고 계속 사용하기 때문에 매우 빠르다.
+  - 다중 사용자 환경에서는 사용할 수 없겠지만 순차적으로 진행되는 테스트에서라면 문제없다.
+
+```java
+// ...
+@DirtiesContext
+public class UserDaoTest {
+
+  @Autowired
+  private UserDao dao;
+
+  @Before
+  public void setUp() throws Exception {
+    DataSource dataSource = new SingleConnectionDataSource(
+        "jdbc:mysql://localhost:3307/testdb", "root", "qwer1234", true);
+    dao.setDataSource(dataSource);
+  }
+
+  // ...
+}
+```
+
+> #### @DirtiesContext
+> - 테스트 메소드에서 애플리케이션 컨텍스트의 구성이나 상태를 변경한다는 것을 테스트 컨텍스트 프레임워크에 알려준다.
+
+- 위 방법의 장점은 XML 설정파일을 수정하지 않고도 테스트 코드를 통해 오브젝트 관계를 재구성할 수 있다는 것이다.
+  - 하지만 매우 주의해서 사용해야 한다.
+  - 이미 `applicationContext.xml` 파일의 설정정보를 따라 구성한 오브젝트를 가져와 의존관계를 강제로 변경했기 때문이다.
+  - 나머지 모든 테스트를 수행하는 동안 변경된 애플리케이션 컨텍스트를 사용하게 될지도 모른다.
+  - 그래서 `@DirtiesContext`를 사용하는 것이다. 이 어노테이션이 붙은 테스트 클래스에는 애플리케이션 컨텍스트 공유를 허용하지 않는다. 대신 메소드마다 애플리케이션 컨텍스트를 새로 만든다.
+  - 하지만 매번 새로 생성한다는 점에서 성능에 문제가 생길 수 있다.
+
+#### 테스트를 위한 별도의 DI 설정
+
+- 테스트 전용 설정파일을 따로 만드는 방법이 있다.
+- 설정파일을 하나 더 작성하고 테스트에 맞게 수정해주는 수고만으로 테스트에 적합한 오브젝트 의존관계를 만들어 사용할 수 있게 된다. (DI 덕분)
+
+```java
+@ContextConfiguration(locations = "/test-applicationContext.xml")
+public class UserDaoTest  {
+  // ...
+}
+```
+
+#### 컨테이너 없는 DI 테스트
+
+```java
+public class UserDaoTest2 {
+
+  private UserDao dao;
+
+  @Before
+  public void setUp() {
+    dao = new UserDao();
+    DataSource dataSource = new SingleConnectionDataSource(
+        "jdbc:mysql://localhost:3307/testdb", "root", "qwer1234", true);
+    dao.setDataSource(dataSource);
+  }
+  
+  // ...
+}
+```
+
+- 테스트를 위한 `DataSource`를 직접 만드는 번거로움은 있지만 애플리케이션 컨텍스트를 아예 사용하지 않으니 코드는 더 단순해지고 이해하기 편해진다.
+  - 테스트 시간도 줄어든다!
+- `UserDao`가 스프링의 API에 의존하지 않고 자신의 관심에만 집중해서 깔끔하게 만들어진 코드이기 때문에 가능한 일이다.
+  - 가볍고 깔끔한 테스트를 만들 수 있는 이유도 DI를 적용했기 때문이다.
+  - DI는 객체지향 프로그래밍 스타일이다. 따라서 DI를 위해 컨테이너가 반드시 필요한 것은 아니다.
+  - DI 컨테이너나 프레임워크는 DI를 편하게 적용하도록 도움을 줄 뿐, 컨테이너가 DI를 가능하게 해주는 것은 아니다.
+
+> #### 침투적 기술과 비침투적 기술
+> - `침투적 invasive` 기술은 기술을 적용했을 때 애플리케이션 코드에 기술 관련 API가 등장하거나, 특정 인터페이스나 클래스를 사용하도록 강제하는 기술을 말한다.
+>   - 애플리케이션 코드가 해당 기술에 종속되는 결과를 가져온다.
+> - 반면 `비침투적 noninvasive` 기술은 애플리케이션 로직을 담은 코드에 아무런 영향을 주지 않고 적용이 가능하다.
+>   - 기술에 종속적이지 않은 순수한 코드를 유지할 수 있게 해준다.
+
+## 5. 학습 테스트로 배우는 스프링
+
+- 자신이 만들지 않은 프레임워크나 다른 개발팀에서 만들어서 제공한 라이브러리 등에 대해서도 테스트를 작성해야 한다.
+  - 이런 테스트를 `학습 테스트 learning test`라고 한다.
+- 학습 테스트의 목적은 자신이 사용할 API나 프레임워크의 기능을 테스트로 보면서 사용 방법을 익히려는 것이다.
+  - 기능 검증 목적 X
+  - 기술 이해도 검증 O
+
+### 5-1. 학습 테스트의 장점
+
+- 다양한 조건에 따른 기능을 손쉽게 확인해볼 수 있다.
+- 학습 테스트 코드를 개발 중에 참고할 수 있다.
+- 프레임워크나 제품을 업그레이드할 때 호환성 검증을 도와준다.
+- 테스트 작성에 대한 훈련이 된다.
+
+### 5-2. 학습 테스트 예제
+
+#### JUnit 테스트 오브젝트 테스트
+
+- 메소드마다 새로운 오브젝트를 생성하는지에 대한 테스트
+
+```java
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.junit.Assert.assertThat;
+
+import org.junit.Test;
+
+public class JUnitTest {
+
+  static JUnitTest testObject;
+
+  @Test
+  public void test1() {
+    assertThat(this, is(not(sameInstance(testObject))));
+    testObject = this;
+  }
+
+  @Test
+  public void test2() {
+    assertThat(this, is(not(sameInstance(testObject))));
+    testObject = this;
+  }
+}
+``` 
+
+- 위 테스트의 찜찜한 점은 직전 테스트에서 만들어진 테스트 오브젝트와만 비교한다는 점이다.
+- 아래와 같이 개선해볼 수 있다.
+
+```java
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.junit.Assert.assertThat;
+
+import java.util.HashSet;
+import java.util.Set;
+import org.junit.Test;
+
+public class JUnitTest2 {
+
+  static Set<JUnitTest2> testObjects = new HashSet<>();
+
+  @Test
+  public void test1() {
+    assertThat(testObjects, not(hasItem(this)));
+    testObjects.add(this);
+  }
+
+  @Test
+  public void test2() {
+    assertThat(testObjects, not(hasItem(this)));
+    testObjects.add(this);
+  }
+
+  @Test
+  public void test3() {
+    assertThat(testObjects, not(hasItem(this)));
+    testObjects.add(this);
+  }
+}
+```
+
+#### 스프링 테스트 컨텍스트 테스트
+
+- 같은 설정에 대한 애플리케이션 컨텍스트를 공유하는지에 대한 테스트
+
+```java
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertThat;
+
+import java.util.HashSet;
+import java.util.Set;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(locations = "/junit.xml")
+public class JUnitTest3 {
+
+  @Autowired
+  ApplicationContext applicationContext;
+
+  static Set<JUnitTest3> testObjects = new HashSet<>();
+  static ApplicationContext contextObject = null;
+
+  @Test
+  public void test1() {
+    assertThat(testObjects, not(hasItems(this)));
+    testObjects.add(this);
+    assertThat(contextObject == null || contextObject == this.applicationContext, is(true));
+    contextObject = this.applicationContext;
+  }
+
+  @Test
+  public void test2() {
+    assertThat(testObjects, not(hasItems(this)));
+    testObjects.add(this);
+    assertThat(contextObject == null || contextObject == this.applicationContext, is(true));
+    contextObject = this.applicationContext;
+  }
+
+  @Test
+  public void test3() {
+    assertThat(testObjects, not(hasItems(this)));
+    testObjects.add(this);
+    assertThat(contextObject == null || contextObject == this.applicationContext, is(true));
+    contextObject = this.applicationContext;
+  }
+}
+```
+
+### 5-3. 버그 테스트
+
+- 오류가 있을 때 그 오류를 가장 잘 드러내줄 수 있는 테스트
+- 버그 테스트의 장점
+1. 테스트의 완성도를 높여준다.
+2. 버그의 내용을 명확하게 분석하게 해준다.
+   - 동등분할이나 경계값 분석을 적용해볼 수도 있다.
+3. 기술적인 문제를 해결하는 데 도움이 된다.
+
+> #### 동등분할 equivalence partitioning
+> - 같은 결과를 내는 값의 범위를 구분해서 각 대표 값으로 테스트를 하는 방법을 말한다.
+> - 어떤 작업의 결과의 종류가 true, false 또는 예외 발생 세 가지라면 각 결과를 내는 입력 값이나 상황의 조합을 만들어 모든 경우에 대한 테스트를 해보는 것이 좋다.
+
+> #### 경계값 분석 boundary value analysis
+> - 에러는 동등분할 범위의 경계에서 주로 많이 발생한다는 특징을 이용해서 경계의 근처에 있는 값을 이용해 테스트하는 방법이다.
+> - 보통 숫자의 입력 값인 경우 0이나 그 주변 값 또는 정수의 최대값, 최소값 등으로 테스트해보면 도움이 될 때가 많다.
+
+# 새로 알게된 사실
+
+- JUnit4 사용법
+  - JUnit4는 JUnit5와 달리 Runner를 달아줘야 실행할 수 있다.
+- 테스트 메소드를 실행할 때마다 새로운 테스트 오브젝트를 만든다.
+  - JUnit5에서 `@BeforeAll`, `@AfterAll`이라는 어노테이션이 있길래, 인스턴스는 하나만 생성하는 줄 알았다.
+- 첫 번째 테스트가 수행될 때 최초로 애플리케이션 컨텍스트가 만들어진다.
+  - 이전에 테스트를 확인해보면 같은 컨텍스트를 가진 테스트끼리 애플리케이션 컨텍스트를 같이 사용할 수 있게 만들 수 있다. 
+  - 그 때 최초로 실행되는 테스트 객체가 무엇인지 확인할 수 있어서, 최초에만 만드는 건가? 라고 생각하고 넘어 갔었다.
+
+# 이해되지 않는 내용
+
+# 모르는 내용
+
+- JUnit5도 테스트 메소드를 실행할 때마다 새로운 테스트 오브젝트를 만들까?
+
 
 # 참고자료
 
