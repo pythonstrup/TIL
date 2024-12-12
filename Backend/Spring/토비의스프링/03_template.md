@@ -319,6 +319,229 @@ public void add(User user) throws SQLException {
 
 ## 4. 컨텍스트와 DI
 
+### 4-1. JdbcContext 분리
+
+#### 클래스 분리
+
+```java
+public class UserDao {
+
+  private JdbcContext jdbcContext;
+
+  public void setJdbcContext(final JdbcContext jdbcContext) {
+    this.jdbcContext = jdbcContext;
+  }
+
+  public void add(User user) throws SQLException {
+    jdbcContext.workWithStatementStrategy(c -> {
+      PreparedStatement ps = c.prepareStatement(
+          "insert into users(id, name, password) values(?,?,?)");
+      ps.setString(1, user.getId());
+      ps.setString(2, user.getName());
+      ps.setString(3, user.getPassword());
+      return ps;
+    });
+  }
+  
+  // ...
+}
+```
+
+#### 빈 의존관계 변경
+
+```mermaid
+classDiagram 
+    direction LR
+  UserDao ..> JdbcContext
+  JdbcContext ..> Datasource
+  Datasource <|.. SimpleDiverDs
+  
+  class UserDao {
+      add()
+      deleteAll()
+  }
+  class JdbcContext {
+      contextMethod()
+  }
+  class Datasource {
+      <<interface>>
+      getConnection()*
+  }
+  class SimpleDiverDs {
+    getConnection()
+  }
+```
+
+- 스프링의 빈 설정은 클래스 레벨이 아니라 런타임 시에 만들어지는 오브젝트 레벨의 의존관계에 따라 정의된다.
+- 빈으로 정의되는 오브젝트 사이의 관계를 그려보면 아래와 같다.
+  - 기존에는 `userDao` 빈이 `dataSource` 빈을 직접 의존했지만 이제는 `jdbcContext` 빈이 그 사이에 끼게 된다.
+
+```mermaid
+classDiagram
+  UserDao ..> JdbcContext
+  JdbcContext ..> Datasource-SimpleDiverDs
+
+  class UserDao {
+    jdbcContext
+  }
+  class JdbcContext {
+      dataSource
+  }
+  class Datasource-SimpleDiverDs {
+      driverClass
+      url
+      username
+      password
+  }
+```
+
+- 설정도 아래와 같이 변경된다.
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+  <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+    <property name="driverClass" value="com.mysql.cj.jdbc.Driver"/>
+    <property name="url" value="jdbc:mysql://localhost:3307/testdb" />
+    <property name="username" value="root"/>
+    <property name="password" value="qwer1234"/>
+  </bean>
+
+  <!-- 추가된 부분 -->
+  <bean id="userDao" class="org.mobilohas.bell.ch3.user.dao.UserDao">
+    <property name="jdbcContext" ref="jdbcContext"/>
+  </bean>
+
+  <bean id="jdbcContext" class="org.mobilohas.bell.ch3.user.dao.JdbcContext">
+    <property name="dataSource" ref="dataSource" />
+  </bean>
+</beans>
+```
+
+### 4-2. JdbcContext의 특별한 DI
+
+- `UserDao`는 인터페이스 거치지 않고 바로 `JdbcContext` 클래스를 사용하고 있다.
+  - `UserDao`와 `JdbcContext`는 클래스 레벨에서 의존관계가 결정된다.
+  - 비록 런타임 시에 DI 방식으로 외부에서 오브젝트를 주입해주는 방식을 사용하긴 했지만, 의존 오브젝트의 구현 클래스를 변경할 수는 없다.
+
+#### 스프링 빈으로 DI
+
+- `의존관계 주입 DI`이라는 개념을 충실히 따르자면, 인터페이스를 사이에 둬서 클래스 레벨에서 의존관계가 고정되지 않게 하고, 런타임 시에 의존할 오브젝트와의 관계를 동적으로 주입해주는 게 맞다.
+  - 따라서 인터페이스를 사용하지 않았다면 엄밀히 말해 온전한 DI라고 볼 수는 없다.
+  - 그러나 DI를 넓은 개념에서 본다면, 객체의 생성과 관계 설정에 대한 제어권한을 오브젝트에서 제거하고 외부로 위임했다는 IoC라는 개념을 포괄한다.
+  - 그런 의미에서 `JdbcContext`를 스프링을 이용해 `UserDao` 객체에서 사용하게 주입했다는 건 DI의 기본을 따르고 있다고 볼 수 있다.
+- 인터페이스를 사용해서 클래스를 자유롭게 변경할 수 있게 하지는 않았지만, `JdbcContext`를 `UserDao`와 DI 구조로 만들어야 할 이유
+1. `JdbcContext`가 스프링 컨테이너의 싱글톤 레지스트리에서 관리되는 싱글톤 빈이 되기 때문
+2. `JdbcContext`가 DI를 통해 다른 빈에 의존하고 있기 때문 (`DataSource`)
+- 여기서 중요한 것은 인터페이스의 사용 여부다. 왜 인터페이스를 사용하지 않았을까?
+  - 인터페이스 X => 객체 간에 강하게 결합
+  - 하지만 `JdbcContext`는 `DataSource`와는 달리 테스트에서도 다른 구현으로 대체해서 사용할 이유가 없다.
+
+#### 코드를 이용하는 수동 DI
+
+- `JdbcContext`를 스프링의 빈으로 등록해서 `UserDao`에 DI 하는 대신 사용할 수 있는 방법이 있다. `UserDao` 내부에서 직접 DI를 적용하는 방법이다.
+  - 대신 싱글톤으로 만드는 것을 포기해야 한다. Dao마다 `JdbcContext`를 가지게 해야할 것이다.
+- 남은 문제는 스프링의 빈인 `DataSource`를 주입받아야 한다는 것이다.
+  - `JdbcContext`는 빈으로 등록되지 않아 DI를 받을 수 없기 때문에 `UserDao`를 통해 받는 수 밖에 없다.  
+
+```mermaid
+classDiagram
+  UserDao ..> Datasource-SimpleDiverDs: 스프링을 통한 DI
+  UserDao --> JdbcContext: 생성 및 DataSource 주입
+  JdbcContext --> Datasource-SimpleDiverDs: UserDao 코드에 의한 DI
+
+  class UserDao {
+    dataSource
+    jdbcContext
+  }
+  class JdbcContext {
+    dataSource
+  }
+  class Datasource-SimpleDiverDs {
+    driverClass
+    url
+    username
+    password
+  }
+```
+
+## 5. 템플릿과 콜백
+
+- 현재 코드 구성은 전략 패턴의 기본 구조에 익명 내부 클래스를 활용한 방식이다.
+  - 이런 방식을 스프링에서는 `템플릿/콜백 패턴`이라고 부른다.
+  - 전략 패턴의 컨텍스트를 템플릿이라 부르고, 익명 내부 클래스로 만들어지는 오브젝트를 콜백이라고 부른다.
+
+> #### 템플릿 Template
+> - 어떤 목적을 위해 미리 만들어둔 모양이 있는 틀을 가리킨다.
+> - 템플릿 메소드 패턴은 고정된 틀의 로직을 가진 템플릿 메소드를 슈퍼클래스에 두고, 바뀌는 부분을 서브클래스의 메소드에 두는 구조로 이뤄진다.
+>
+> #### 콜백 Callback
+> - 실행되는 것을 목적으로 다른 오브젝트의 메소드에 전달되는 오브젝트를 의미
+> - 파라미터로 전달되지만 값을 참조하기 위한 것이 아니라 특정 로직을 담은 메소드를 실행ㅎ시키기 위해 사용
+
+### 5-1. 템플릿/콜백의 동작원리
+
+- 여기서 콜백은 템플릿 안에서 호출되는 것을 목적으로 만들어진 오브젝트를 말한다.
+
+#### 템플릿/콜백의 특징
+
+- 여러 개의 메소드를 가진 일반적인 인터페이스를 사용할 수 있는 전략 패턴의 전략과 달리 템플릿/콜백 패턴의 콜백은 보통 단일 메소드 인터페이스를 사용한다.
+  - 하나의 템플릿에서 여러 가지 종류의 전략을 사용해야 한다면 하나 이상의 콜백 오브젝트를 사용할 수도 있다.
+- 클라이언트가 템플릿 메소드를 호출하면서 콜백 오브젝트를 전달하는 것은 메소드 레벨에서 일어나는 DI다.
+  - 콜백 오브젝트가 내부 클래스로서 자신을 생성한 클라이언트 메소드 내의 정보를 직접 참조한다는 것도 템플릿/콜백의 고유한 특징이다.
+  - 클라이언트와 콜백이 강하게 결합된다는 면에서도 일반적으로 DI와 조금 다르다.
+
+### 5-2. 편리한 콜백의 재활용
+
+#### 콜백의 분리와 재활용
+
+- 복잡한 익명 내부 클래스의 사용을 최소화할 수 있는 방법
+- 변하는 것과 변하지 않는 것을 분리
+  - 변하는 SQL 문장 
+  - 변하지 않는 콜백 클래스 정의와 오브젝트
+
+```java
+// 변하는 부분
+public void deleteAll() throws SQLException {
+  executeSql("delete from users");
+}
+```
+
+```java
+// 변하지 않는 부분
+private void executeSql(final String query) throws SQLException {
+  jdbcContext.workWithStatementStrategy(c -> c.prepareStatement(query));
+}
+```
+
+#### 콜백과 템플릿의 결합
+
+- `executeSql()` 메소드는 `UserDao`만 사용하기는 아깝다.
+  - 이렇게 재사용 가능한 콜백을 담고 있는 메소드라면 DAO가 공유할 수 있는 템플릿 클래스 안으로 옮겨도 된다.
+
+```java
+public class JdbcContext {
+  // ...
+  public void executeSql(final String query) throws SQLException {
+    workWithStatementStrategy(c -> c.prepareStatement(query));
+  }
+}
+```
+
+- 일반적으로 성격이 다른 코드들은 가능한 한 분리하는 편이 낫지만, 이 경우는 반대다.
+  - 하나의 목적을 위해 서로 긴밀하게 연관되어 동작하는 응집력 강한 코드들이기 때문에 한 군데 모여 있는 게 유리하다.
+- 구체적인 구현과 내부의 전략 패턴, 코드에 의한 DI, 익명 내부 클래스 등의 기술은 최대한 감춰두고, 외부에는 꼭 필요한 기능을 제공하는 단순한 메소드만 노출해주는 것이다.
+
+### 5-3. 템플릿/콜백의 응용
+
+- 스프링의 많은 API나 기능을 살펴보면 템플릿/콜백 패턴을 적용한 경우를 많이 발견할 수 있다.
+
+#### 테스트와 try/catch/finally
+
 
 # 참고자료
 
