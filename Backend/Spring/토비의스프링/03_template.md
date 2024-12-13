@@ -535,13 +535,226 @@ public class JdbcContext {
 - 일반적으로 성격이 다른 코드들은 가능한 한 분리하는 편이 낫지만, 이 경우는 반대다.
   - 하나의 목적을 위해 서로 긴밀하게 연관되어 동작하는 응집력 강한 코드들이기 때문에 한 군데 모여 있는 게 유리하다.
 - 구체적인 구현과 내부의 전략 패턴, 코드에 의한 DI, 익명 내부 클래스 등의 기술은 최대한 감춰두고, 외부에는 꼭 필요한 기능을 제공하는 단순한 메소드만 노출해주는 것이다.
+- `add()`도 아래와 같이 공통화해볼 수 있다.
+
+```java
+public class JdbcContext {
+  public void executeSql(final String query, final Object... params) throws SQLException {
+    workWithStatementStrategy(c -> {
+      PreparedStatement ps = c.prepareStatement(query);
+      for (int i = 0; i < params.length; i++) {
+        final Object param = params[i];
+        setParameter(ps, i, param);
+      }
+      return ps;
+    });
+  }
+
+  private void setParameter(final PreparedStatement ps, final int index, final Object param) throws SQLException {
+    if (param instanceof String) {
+      ps.setString(index+1, (String) param);
+    } else if (param instanceof Integer) {
+      ps.setInt(index+1, (Integer) param);
+    }
+    // ... 그 외 수많은 타입들
+  }
+}
+
+public class UserDao {
+  public void add(User user) throws SQLException {
+    final String query = "insert into users(id, name, password) values(?,?,?)";
+    jdbcContext.executeSql(query, user.getId(), user.getName(), user.getPassword());
+  }
+}
+```
 
 ### 5-3. 템플릿/콜백의 응용
 
 - 스프링의 많은 API나 기능을 살펴보면 템플릿/콜백 패턴을 적용한 경우를 많이 발견할 수 있다.
 
-#### 테스트와 try/catch/finally
+#### 응용
 
+```java
+public interface LineCallback {
+  Integer doSomethingWithLine(String line, Integer value);
+}
+
+public class Calculator {
+
+  public Integer lineReadTemplates(final String path, int initVal, LineCallback callback)
+      throws IOException {
+    BufferedReader br = null;
+    try {
+      br = new BufferedReader(new FileReader(path));
+      Integer res = initVal;
+      String line = null;
+      while ((line = br.readLine()) != null) {
+        res = callback.doSomethingWithLine(line, res);
+      }
+      return res;
+    } catch (IOException e) {
+      System.out.println(e.getMessage());
+      throw e;
+    } finally {
+      if (br != null) {
+        br.close();
+      }
+    }
+  }
+
+  public Integer calcSum(final String path) throws IOException {
+    return lineReadTemplates(path, 0, (line, res) -> res + Integer.parseInt(line));
+  }
+
+  public Integer calcMultiply(final String path) throws IOException {
+    return lineReadTemplates(path, 1, (line, res) -> res * Integer.parseInt(line));
+  }
+}
+```
+
+#### 제너릭스를 이용한 콜백 인터페이스
+
+- 만약 파일을 라인 단위로 처리해서 만드는 결과의 타입을 다양하게 가져가고 싶다면, 자바 언어에 타입 파라미터라는 개념을 도입한 `제네릭스 Generics`를 사용하면 된다.
+
+```java
+public interface LineCallback<T> {
+  T doSomethingWithLine(String line, T value);
+}
+
+public class Calculator {
+
+  public <T> T lineReadTemplates(final String path, T initVal, LineCallback<T> callback)
+      throws IOException {
+    BufferedReader br = null;
+    try {
+      br = new BufferedReader(new FileReader(path));
+      T res = initVal;
+      String line = null;
+      while ((line = br.readLine()) != null) {
+        res = callback.doSomethingWithLine(line, res);
+      }
+      return res;
+    } catch (IOException e) {
+      System.out.println(e.getMessage());
+      throw e;
+    } finally {
+      if (br != null) {
+        br.close();
+      }
+    }
+  }
+
+  public String concatenate(final String path) throws IOException {
+    return lineReadTemplates(path, "", (line, res) -> res + line);
+  }
+}
+```
+
+## 6. 스프링의 JdbcTemplate
+
+- 스프링이 제공하는 JDBC 코드용 기본 템플릿은 `JdbcTemplate`이다.
+  - 앞에서 만들었던 `JdbcContext`와 유사하지만 훨씬 강력하고 편리한 기능을 제공해준다.
+
+### 6-1. update()
+
+- `JdbcTemplate`의 `update()` 메소드만으로 `JdbcContext`에서 힘겹게 만들었던 `deleteAll()`과 `add()`를 손쉽게 만들 수 있다.
+
+```java
+public void add(User user) throws SQLException {
+  final String query = "insert into users(id, name, password) values(?,?,?)";
+  jdbcTemplate.update(query, user.getId(), user.getName(), user.getPassword());
+}
+
+public void deleteAll() throws SQLException {
+  jdbcTemplate.update("delete from users");
+}
+```
+
+### 6-2. queryForInt()
+
+- `getCount()`도 쉽게 만들 수 있다. 여기서는 템플릿/콜백을 2개를 순차적으로 사용한다.
+  1. `PrepareStatementCreator` 콜백은 템플릿으로부터 `Connection`을 받고 `PrepareStatement`를 돌려준다.
+  2. `ResultSetExtractor` 콜백은 템플릿으로부터 `ResultSet`을 받고 거기서 추출한 결과를 돌려준다.
+
+```java
+public int getCount() throws SQLException {
+  return jdbcTemplate.query(
+      con -> con.prepareStatement("select count(*) from users"),
+      rs -> {
+        rs.next();
+        return rs.getInt(1);
+      });
+}
+```
+
+- 여기서 한 가지 눈 여겨 볼 점은 `ResultSetExtractor`가 제네릭스 타입 파라미터를 갖는다는 점이다.  
+  - `ResultSet`에서 추출할 수 있는 값의 타입은 다양하기 때문에 타입 파라미터를 사용한 것이다.
+  - `ResultSetExtractor` 콜백에 지정한 타입은 제네릭 메소드에 적용돼서 `query()` 템플릿의 리턴 타입도 함께 바뀐다.
+- 위의 기능을 쉽게 사용할 수 있는 `jdbcTemplate.queryForInt()`가 있었지만 스프링 4.3에서 삭제되었다.
+  - `queryForObject`를 대신 사용하도록 변경했다.
+
+```java
+public int getCount() throws SQLException {
+  return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
+}
+```
+
+### 6-3. queryForObject()
+
+- `ResultSetExtractor`와 `RowMapper`는 모두 템플릿으로부터 `ResultSet`을 전달받고, 필요한 정보를 추출해서 리턴하는 방식으로 동작한다.
+- 다른 점은 `ResultSetExtractor`는  `ResultSet`을 한 번 전달받아 알아서 추출 작업을 모두 진행하고 최종 결과만 리턴해주면 되는 데 반해, `RowMapper`는 `ResultSet`의 로우 하나를 매핑하기 위해 사용되기 때문에 여러 번 호출할 수 있다.
+
+```java
+public User get(String id) throws SQLException {
+  return jdbcTemplate.queryForObject("select * from users where id = ?",
+      new Object[]{id},
+      new RowMapper<User>() {
+        @Override
+        public User mapRow(final ResultSet rs, final int i) throws SQLException {
+          User user = new User();
+          user.setId(rs.getString("id"));
+          user.setName(rs.getString("name"));
+          user.setPassword(rs.getString("password"));
+          return user;
+        }
+      });
+}
+```
+
+- `queryForObject()`는 SQL을 실행하면 한 개의 로우만 얻을 것이라고 기대한다.
+  - 이미 `RowMapper`가 호출되는 시점에서 `ResultSet`은 첫 번째 로우를 가리키고 있으므로 다시 `rs.next()`를 호출할 필요가 없다.
+- `queryForObject()`은 조회 결과가 없는 예외 상황을 어떻게 처리해야 할까?
+  - 처리할 필요가 없다. 이미 되어 있다. `EmptyResultDataAccessException`를 던진다.
+
+# 시도했던 것
+
+#### 1. public void executeSql(final String query, final Object... params)를 직접 만들어봤다.
+
+#### 2. JdbcTemplate을 xml에서 빈으로 설정해 주입해봤다.
+
+```xml
+<beans>
+  
+  <!-- ... -->
+  
+  <bean id="userDao" class="org.mobilohas.bell.ch3.user.dao.UserDao">
+    <property name="jdbcTemplate" ref="jdbcTemplate"/>
+  </bean>
+
+  <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+    <property name="dataSource" ref="dataSource" />
+  </bean>
+</beans>
+```
+
+- 아래 에러가 잠깐 떴었지만 성공했다.
+
+<img src="img/jdbcTemplate01.png">
+
+# 추가
+
+- 카운트를 쉽게 가져올 수 있는 `jdbcTemplate.queryForInt()`가 있었지만 스프링 4.3에서 삭제되었다.
+  - `queryForObject`를 대신 사용하도록 변경했다.
 
 # 참고자료
 
