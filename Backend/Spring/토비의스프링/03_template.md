@@ -726,6 +726,136 @@ public User get(String id) throws SQLException {
 - `queryForObject()`은 조회 결과가 없는 예외 상황을 어떻게 처리해야 할까?
   - 처리할 필요가 없다. 이미 되어 있다. `EmptyResultDataAccessException`를 던진다.
 
+### 6-4. query()
+
+- getAll()의 추가
+- TDD 활용
+
+#### query() 템플릿을 이용하는 getAll() 구현
+
+```java
+public List<User> getAll() {
+  return jdbcTemplate.query("select * from users",
+      (rs, rowNum) -> new User(
+          rs.getString("id"),
+          rs.getString("name"),
+          rs.getString("password")));
+}
+```
+
+#### 테스트 보완
+
+- 예외적인 조건에 대한 테스트를 빼먹지 말아야 한다.
+- `query()`는 `queryForObject()`처럼 예외를 던지지는 않는다.
+  - 대신 크기가 0인 `List<T>` 오브젝트를 돌려준다.
+  - 정말 그런지 테스트를 추가해보자. 아마 성공할 것이다.
+
+```java
+@Test
+public void getAllEmpty() throws SQLException {
+  dao.deleteAll();
+  
+  List<User> users = dao.getAll();
+  assertThat(users.size(), is(0));
+}
+```
+
+- 그런데 `getAll()`에서 `query()`를 손댈 것도 아닌데 이런 테스트를 실행해야 할까? 답은 물론이다.
+  - `UserDao` 사용하는 입장에서는 `getAll()`이 내부적으로 `JdbcTemplate`을 사용하는지, 개발자가 직접 만든 JDBC 코드를 사용하는지 알 수 없고, 알 필요도 없다. 그저 기대 동작에만 관심이 있을 뿐이다.
+- `UserDaoTest`는 `UserDao`의 기대 동작 방식에 대한 검증이 이 있는 테스트고, 따라서 그 예상되는 결과를 모두 검증하는 게 옳다.
+  - 이렇게 해두면 나중에 `JdbcTemplate`의 `query()` 대신 다른 방식을 사용하더라도 동일한 기능을 유지하는 `UserDao`인지 확인할 수 있다.
+- 또 내부적으로 `query()`를 사용했더라도 메소드는 다른 값을 리턴하게 할 수도 있다.
+  - `query()`의 결과를 무조건 `getAll()`에서 리턴해야 할 이유는 없다.
+  - `query()`에서 빈 리스트가 오면 null로 바꿔서 리턴할 수도 있다. 또는 예외를 던지게 할 수도 있다.
+
+### 6-5. 재사용 가능한 콜백의 분리
+
+#### DI를 위한 코드 정리
+
+- 필요 없어진 DataSource 정리
+
+#### 중복 제거
+
+- `UserDao`에서 다양한 조건으로 검색하는 기능들이 추가되면 조회에서 사용되고 있는 `RowMapper`를 여러 번 호출할 가능성은 충분히 높다.
+  - 따라서 `User`용 `RowMapper` 콜백을 메소드에서 분리해 중복을 없애고 재사용되게 만들어야 한다.
+
+```java
+public class UserDao {
+
+  private RowMapper<User> userMapper = (rs, rowNum) -> new User(
+          rs.getString("id"),
+          rs.getString("name"),
+          rs.getString("password"));
+
+  public User get(String id) throws SQLException {
+    return jdbcTemplate.queryForObject(
+            "select * from users where id = ?",
+            new Object[]{id},
+            userMapper);
+  }
+
+  public List<User> getAll() {
+    return jdbcTemplate.query("select * from users", userMapper);
+  }
+}
+```
+
+#### 템플릿/콜백 패턴과 UserDao
+
+- `UserDao`는 `User` 정보를 DB에 넣거나 가져오거나 조작하는 방법에 대한 핵심적인 로직만 담겨 있다.
+  - `User`라는 자바 오브젝트와 `USER` 테이블 사이에 어떻게 정보를 주고 받을지, DB와 커뮤니케이션하기 위한 SQL 문장이 어떤 것인지에 대한 최적화된 코드를 갖고 있다
+  - 만약 사용할 테이블과 필드 정보가 바뀌면 `UserDao`의 거의 모든 코드가 함께 바뀐다. 따라서 응집도가 높다고 볼 수 있다.
+- 반면에 JDBC API를 사용하는 방식, 예외처리, 리소스의 반납 DB 연결을 어떻게 가져올지에 대한 책임과 관심은 모두 `JdbcTemplate`에 있다.
+  - 따라서 변경이 일어난다고 해도 `UserDao` 코드에는 아무런 영향을 주지 않는다.
+  - 그런 면에서 책임이 다른 코드와는 낮은 결합도를 유지하고 있다.
+  - 다만 `JdbcTemplate`이라는 템플릿 클래스를 직접 이용한다는 면에서 특정 템플릿/콜백 구현에 대한 강한 결합을 가지고 있다.
+  - 따라서 더 낮은 결합도를 유지하고 싶다면 `JdbcTemplate`을 독립적인 빈으로 등록하고 `JdbcTemplate`이 구현하고 있는 `JdbcOperations` 인터페이스를 통해 DI 받아 사용하도록 만들어도 된다.
+- `UserDao`를 더 개선할 수 있는 방법은 없을까?
+1. `userMapper`가 인스턴스 변수로 설정되어 있고, 한 번 만들어지면 변경되지 않는 프로퍼티와 같은 성격을 띠고 있으니 아예 `UserDao` 빈의 DI용 프로퍼티로 만들어버리면 어떨까?
+  - `UserMapper`를 독립된 빈으로 만들고 XML 설정에 User 테이블의 필드 이름과 User 오브젝트 프로퍼티에 매핑 정보를 담을 수도 있을 것이다.
+  - 이렇게 `UserMapper`를 분리할 수 있다면 `User`의 프로터티와 `User` 테이블의 필드 이름이 바뀌거나 매핑 방식이 바뀌는 경우에 `UserDao` 코드를 수정하지 않고도 매핑 정보를 변경할 수 있다는 장점이 있다.
+
+```java
+public class UserDao {
+
+  private RowMapper<User> userMapper;
+
+  public void setUserMapper(final RowMapper<User> userMapper) {
+    this.userMapper = userMapper;
+  }
+}
+```
+
+```java
+@Configuration
+public class UserMapper {
+
+  @Bean
+  public RowMapper<User> userMapper() {
+    return (rs, rowNum) -> new User(
+        rs.getString("id"),
+        rs.getString("name"),
+        rs.getString("password"));
+  }
+}
+```
+
+```xml
+<beans>
+  <bean id="userDao" class="org.mobilohas.bell.ch3.user.dao.UserDao">
+    <property name="jdbcTemplate" ref="jdbcTemplate" />
+    <property name="userMapper" ref="userMapper" />
+  </bean>
+  <bean class="org.mobilohas.bell.ch3.user.dao.UserMapper" />
+</beans>
+```
+
+2. DAO 메소드에서 사용하는 SQL 문장을 `UserDao` 코드가 아니라 외부 리소스에 담고 이를 읽어와 사용하게 하는 것이다.
+  - 이렇게 해두면 DB 테이블의 이름이나 필드 이름을 변경하거나 SQL 쿼리를 최적화해야 할 때도 `UserDao` 코드에는 손을 댈 필요가 없다.
+  - 어떤 개발팀은 정책적으로 모든 SQL 쿼리를 DBA들이 만들어서 제공하고 관리하는 경우가 잇다. 이럴 때 SQL이 독립적인 파일에 담겨 있다면 편리할 것이다.
+
+---
+
 # 시도했던 것
 
 #### 1. public void executeSql(final String query, final Object... params)를 직접 만들어봤다.
@@ -749,12 +879,18 @@ public User get(String id) throws SQLException {
 
 - 아래 에러가 잠깐 떴었지만 성공했다.
 
+#### 3. userMapper xml에서 빈으로 설정해 주입
+
+
+
 <img src="img/jdbcTemplate01.png">
 
 # 추가
 
 - 카운트를 쉽게 가져올 수 있는 `jdbcTemplate.queryForInt()`가 있었지만 스프링 4.3에서 삭제되었다.
   - `queryForObject`를 대신 사용하도록 변경했다.
+
+---
 
 # 참고자료
 
