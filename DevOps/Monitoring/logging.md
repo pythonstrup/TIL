@@ -4,6 +4,8 @@
 
 - 프로그램 동작시 발생하는 `모든 일`을 기록하는 행위
   - 여기서 `모든 일`은 프로젝트의 성격이나 팀에 맞게 설정하면 된다.
+  - 서버의 상태와 동작 정보를 시간 경과에 따라 기록.
+  - 시스템의 오류와 문제들을 쉽게 찾을 수 있도록 도와줌
 - 로깅 프레임워크
   - SLF4J
   - Logback
@@ -167,9 +169,148 @@ traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 - OpenTelemetry
 - `io.micrometer:micrometer-tracing-bridge-brave` 의존성
 
+<br/>
+
+# Metrics
+
+- 시스템의 성능과 상태에 대한 통계적인 정보를 의미.
+- ex) DAU, Retension, CPU 사용량, 메모리 사용량
+
+## 모니터링 인터페이스
+
+### 만약 모니터링 툴을 수정해야 하는 상황이라면?
+
+- 프로메테우스 모니터링 툴에 CPU, JVM, CON(커넥션) 정보 등을 JMX 툴에 전달한다고 해보자.
+
+```mermaid
+flowchart LR
+    CPU --> P[프로메테우스 모니터링 툴]
+    JVM --> P
+    CON --> P
+```
+
+- 만약 ElasticSearch으로 모니터링 툴을 변경해야 하면 어떻게 될까?
+
+```mermaid
+flowchart LR
+  CPU --> EA[ElasticSearch 모니터링 툴]
+  JVM --> EA
+  CON --> EA
+```
+
+- 지표를 측정하는 코드를 변경한 툴에 맞도록 변경해야 한다.
+- 인터페이스를 통해 해결할 수 있는 방법은 없을까?
+
+### 마이크로미터 Micrometer
+
+- 마이크로미터는 벤더 독립적인 인터페이스다.
+  - CPU, JVM 등등 여러가지 메트릭(측정 지표)에 대한 표준 측정 방식을 제공한다.
+  - 메트릭에 액세스하여 다양한 차원에서 분석할 수 있는 기능을 제공
+- 스프링부트 액추에이터는 마이크로미터를 기본으로 내장해서 사용한다.
+  - 스프링은 웬만한 추상화를 직접 만들지만, 이미 잘 만들어진 추상화인 마이크로미터를 활용했다. 
+
+```mermaid
+flowchart LR
+    CPU --> M[Micrometer]
+    JVM --> M
+    CON --> M
+    M <-..- MJ[Micrometer JMX 구현체]
+    M <-..- MP[Micrometer 프로메테우스 구현체]
+```
+
+- 인터페이스에 맞는 모니터링 툴 구현체만 선택하면 된다.
+  - 원하면 변경도 가능하다.
+
+### JVM 메트릭
+
+- JVM 관련 메트릭은 `jvm.` 으로 시작한다.
+- 해당 메트릭이 포함하고 있는 정보는 아래와 같다.
+  - 메모리 및 버퍼 풀 세부 정보
+  - 가비지 컬렉션 관련한 통계
+  - 스레드 활용
+  - 로드 및 언로드된 클래스 수
+  - JVM 버전 정보
+  - JIT 컴파일 시간
+
+### 시스템 메트릭
+
+- `system.`, `process.`, `disk.`으로 시작한다.
+- 해당 메트릭이 포함하고 있는 정보는 아래와 같다.
+  - CPU 메트릭
+  - 파일 디스크립터 메트릭
+  - 가동 시간 메트릭
+  - 사용 가능한 디스크 공간
+
+### 애플리케이션 시작 메트릭
+
+- `application.started.time`: 애플리케이션을 시작하는 데 걸리는 시간. `ApplicationStartedEvent`로 측정한다.
+- `application.ready.time`: 애플리케이션이 요청을 처리할 준비가 되는 데 걸리는 시간 `ApplicationReadyEvent`로 측정한다.
+
+> #### ApplicationStartedEvent
+> - 스프링 컨테이너가 완전히 실행된 상태일 때 발행된다. 이후에 `CommandLineRunner`가 호출된다.
+
+> #### ApplicationReadyEvent
+> - `CommandLineRunner`가 실행된 이후 호출된다.
+
+### 스프링 MVC 메트릭
+
+- 스프링 MVC가 처리하는 모든 요청을 다룬다.
+- `http.server.request`이다.
+- 해당 메트릭은 아래와 같은 `TAG`가 달려 있다.
+  - `uri`: 요청 URI
+  - `method`: GET, POST 등의 HTTP 메소드
+  - `status`: 200, 400, 500 등의 HTTP 상태 코드
+  - `exception`: 예외
+  - `outcome`: 상태 코드를 그룹으로 모아서 확인.
+
+### 데이터소스 메트릭
+
+- DataSource와 커넥션 풀에 관한 메트릭을 확인할 수 있다.
+- `jdbc.connections`로 시작한다.
+  - 만약 히카리 CP 커넥션 풀을 사용한다면 `hikari.`로 시작하는 메트릭을 통해 커넥션 풀의 자세한 내용을 확인할 수 있다.
+- 최대 커넥션, 최소 커넥션, 활성 커넥션, 대기 커넥션 수 등을 확인할 수 있다.
+
+### 로그 메트릭
+
+- `logback.events`
+- logback 로그에 대한 메트릭을 확인할 수 있다.
+
+### 톰캣 메트릭
+
+- `tomcat.`으로 시작한다.
+- 톰캣 메트릭을 사용하려면 아래 옵션을 설정해줘야 한다.
+
+```yaml
+# application.yaml
+server:
+  tomcat:
+    mbeanregistry:
+      enalbed: true
+```
+
+- `tomcat.threads.busy`: 현재 작동하는 스레드 수
+- `tomcat.theads.config.max`: 최대 스레드 수
+
+### 사용자 정의 메트릭 
+
+- 사용자가 직접 메트릭을 정의할 수도 있다.
+- ex) 주문 수, 취소 수
+
+## 쿠버네티스 환경에 적합한 모니터링 데이터 수집 방법
+
+- 쿠버네티스 노드는 `kubelet`을 통해 파드를 관리하며, 파드의 CPU나 메모리 같은 메트릭 정보를 수집하기 위해 `kubelet`에 내장된 `cAdvisor`를 사용한다.
+  - `cAdvisor`는 구글이 만든 컨테이너 메트릭 수집 도구로, 쿠버네티스 클러스터 위에 배포된 여러 컨테이너가 사용하는 메트릭 정보를 수집한 후 이를 가공해서 `kubelet`에 전달하는 역할을 한다.
+- 메트릭 서버에서 수집한 데이터로 여러 기능을 수행하도록 구성한 것을 `리소스 메트릭 파이프라인 Resource Metric Pipeline`이라고 한다.
+  - `cAdvisor`에서 수집된 데이터로 여러 기능을 수행하도록 구성한 것이다.
+  - 하지만 집계한 데이터를 메모리에만 저장하므로 데이터를 영구적으로 보존하기 어렵고 현재 시점의 데이터만 출력된다.
+  - 따라서 메트릭 데이터를 저장 공간에 따로 저장하는 `완전한 모니터링 파이프라인 Full Monitoring Pipeline`으로 구축하기를 권장한다. (ex-프로메테우스)
+
 # 참고자료
 
 - [로깅과 로그 관리 + 분산 추척](https://www.youtube.com/watch?v=c7V52EMKXQM)
 - [Observability with Spring Boot 3](https://spring.io/blog/2022/10/12/observability-with-spring-boot-3)
 - [[10분 테코톡] ☂️ 검프의 Logging(로깅) #1](https://www.youtube.com/watch?v=1MD5xbwznlI)
 - [[10분 테코톡] ☂️ 검프의 Logging(로깅) #2](https://www.youtube.com/watch?v=JqZzy7RyudI)
+- [스프링 공식 문서](https://docs.spring.io/spring-boot/reference/actuator/metrics.html#actuator.metrics.supported)
+- [[액추에이터] - 마이크로미터(Micrometer)와 메트릭(Metric)](https://ttl-blog.tistory.com/1322)
+- [안정적인 운영을 완성하는 모니터링. 프로메테우스와 그라파나](https://velog.io/@moey920/%EC%95%88%EC%A0%95%EC%A0%81%EC%9D%B8-%EC%9A%B4%EC%98%81%EC%9D%84-%EC%99%84%EC%84%B1%ED%95%98%EB%8A%94-%EB%AA%A8%EB%8B%88%ED%84%B0%EB%A7%81.-%ED%94%84%EB%A1%9C%EB%A9%94%ED%85%8C%EC%9A%B0%EC%8A%A4%EC%99%80-%EA%B7%B8%EB%9D%BC%ED%8C%8C%EB%82%98)
