@@ -58,15 +58,110 @@ public class GrowthIngestAdapter extends Ingest {
 }
 ```
 
+```mermaid
+classDiagram 
+    direction LR
+    Client --> Intake
+    Intake <|.. GrowthAdapter
+    GrowthAdapter --> Growth
+    
+    class Intake {
+      <<interface>>
+      +getName()* String
+      +getIngestedAt()* LocalDateTime
+      +getAmount()* Integer
+      +calculateCalorie()* Float
+    }
+    class GrowthAdapter {
+      -Growth growth
+      +getName() String
+      +getIngestedAt() LocalDateTime
+      +getAmount() Integer
+      +calculateCalorie() Float
+    }
+    class Growth {
+        <<interface>>
+      +getRecordedAt()* LocalDateTime
+      +getValue()* Float
+    }
+```
+
+```java
+public class GrowthAdapter implements Intake {
+  
+  private final Growth growth;
+  
+  GrowthAdapter(Growth growth) {
+    this.growth = growth;
+  }
+  
+  public LocalDateTime getIngestedAt() {
+    return growth.getRecordedAt();
+  }
+  public Integer getAmount() {
+    return 0;
+  }
+  public Float calculateCalorie() {
+    return 0;
+  }
+}
+```
+
 - 하지만 `getAmount()`, `getIngestedAt()`, `getMemo()`와 같은 메소드를 강제할 수 없다는 문제점이 있다. 
 
 ## 어댑터 패턴 적용2 - 가상의 도메인 Record 만들기
 
 - 사실 둘은 '기록'이라는 공통점이 있다. 차라리 Record라는 가상의 도메인을 만드는 것은 어떨까?
 
+```mermaid
+classDiagram
+    direction LR
+    Client --> Record
+    IntakeAdapter --> Intake
+    Record <|.. IntakeAdapter
+    Record <|.. GrowthAdapter
+    GrowthAdapter --> Growth
+
+    class Record {
+        +getTitle()* String
+        +getRecordedAt()* LocalDateTime
+        +getAmount()* Integer
+        +calculateCalorie()* Float
+    }
+    class Intake {
+        <<interface>>
+        +getName()* String
+        +getIngestedAt()* LocalDateTime
+        +getAmount()* Integer
+        +calculateCalorie()* Float
+    }
+    class IntakeAdapter {
+        -Intake intake
+        +getRecordedAt()* LocalDateTime
+        +getTitle()* String
+        +getAmount()* Integer
+        +calculateCalorie()* Float
+    }
+    class GrowthAdapter {
+        -Growth growth
+        +getRecordedAt()* LocalDateTime
+        +getTitle()* String
+        +getAmount()* Integer
+        +calculateCalorie()* Float
+    }
+    class Growth {
+        <<interface>>
+        +getRecordedAt()* LocalDateTime
+        +getValue()* Float
+    }
+```
+
 ```java 
 public interface Record {
-  
+  String getTitle(); 
+  LocalDateTime getRecordedAt(); 
+  Integer getAmount(); 
+  Float calculateCalorie(); 
 } 
 ```
 
@@ -82,6 +177,31 @@ public class GrowthRecordAdapter implements Record {
 public class IngestRecordAdapter implements Record {
   
 }
+```
+
+# 만약 어댑터 패턴을 적용하지 않고 스키마를 합쳤다면?
+
+```mermaid
+classDiagram
+    direction LR
+    Client --> Record
+    Record <|-- Intake
+    Record <|-- Growth
+
+    class Record {
+        <<interface>>
+        +getTitle()* String
+        +getRecordedAt()* LocalDateTime
+        +getAmount()* Integer
+        +calculateCalorie()* Float
+    }
+    class Intake {
+        <<interface>>
+    }
+    class Growth {
+        <<interface>>
+        +getValue()* Float
+    }
 ```
 
 # 결론
