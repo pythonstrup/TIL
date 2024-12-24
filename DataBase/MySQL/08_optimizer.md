@@ -161,61 +161,362 @@ mysql> SELECT COUNT(*) FROM salaries;
 #### 2-3-2. 정렬 알고리즘
 
 - 레코드 전체를 버퍼에 담을지, 정렬 기준 칼럼만 소트 버퍼에 담을지에 따라 `싱글 패스 Single-Pass`와 `투 패스 Two-Pass` 2가지로 모드를 나눌 수 있다.
+- 정렬을 수행하는 쿼리가 어떤 정렬 모드를 사용하는지는 아래와 같이 옵티마이저 트레이스 기능으로 확인할 수 있다.
 
-### 싱글 패스 정렬 방식
+```shell
+mysql> SET OPTIMIZER_TRACE="enabled=on",END_MARKERS_IN_JSON=on;
+mysql> SET OPTIMIZER_TRACE_MAX_MEM_SIZE=1000000;
+```
+
+- 쿼리를 실행해보자.
+
+```shell
+mysql> SELECT * FROM employees ORDER BY last_name LIMIT 100000, 1;
++--------+------------+------------+-----------+--------+------------+
+| emp_no | birth_date | first_name | last_name | gender | hire_date  |
++--------+------------+------------+-----------+--------+------------+
+| 418804 | 1958-01-06 | Jacopo     | Gyimothy  | F      | 1997-06-20 |
++--------+------------+------------+-----------+--------+------------+
+1 row in set (0.21 sec)
+```
+
+- 그리고 트레이션 쿼리를 날리면 옵티마이저의 트레이스 내용을 확인할 수 있다.
+
+```shell
+mysql> SELECT * FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE \G
+*************************** 1. row ***************************
+                            QUERY: SELECT * FROM employees ORDER BY last_name LIMIT 100000, 1
+                            TRACE: {
+  "steps": [
+    {
+      "join_preparation": {
+        "select#": 1,
+        "steps": [
+          {
+            "expanded_query": "/* select#1 */ select `employees`.`emp_no` AS `emp_no`,`employees`.`birth_date` AS `birth_date`,`employees`.`first_name` AS `first_name`,`employees`.`last_name` AS `last_name`,`employees`.`gender` AS `gender`,`employees`.`hire_date` AS `hire_date` from `employees` order by `employees`.`last_name` limit 100000,1"
+          }
+        ] /* steps */
+      } /* join_preparation */
+    },
+    {
+      "join_optimization": {
+        "select#": 1,
+        "steps": [
+          {
+            "substitute_generated_columns": {
+            } /* substitute_generated_columns */
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "`employees`",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": [
+                ] /* depends_on_map_bits */
+              }
+            ] /* table_dependencies */
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "`employees`",
+                "table_scan": {
+                  "rows": 300252,
+                  "cost": 922.709
+                } /* table_scan */
+              }
+            ] /* rows_estimation */
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [
+                ] /* plan_prefix */,
+                "table": "`employees`",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "rows_to_scan": 300252,
+                      "access_type": "scan",
+                      "resulting_rows": 300252,
+                      "cost": 30947.9,
+                      "chosen": true
+                    }
+                  ] /* considered_access_paths */
+                } /* best_access_path */,
+                "condition_filtering_pct": 100,
+                "rows_for_plan": 300252,
+                "cost_for_plan": 30947.9,
+                "chosen": true
+              }
+            ] /* considered_execution_plans */
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": null,
+              "attached_conditions_computation": [
+              ] /* attached_conditions_computation */,
+              "attached_conditions_summary": [
+                {
+                  "table": "`employees`",
+                  "attached": null
+                }
+              ] /* attached_conditions_summary */
+            } /* attaching_conditions_to_tables */
+          },
+          {
+            "optimizing_distinct_group_by_order_by": {
+              "simplifying_order_by": {
+                "original_clause": "`employees`.`last_name`",
+                "items": [
+                  {
+                    "item": "`employees`.`last_name`"
+                  }
+                ] /* items */,
+                "resulting_clause_is_simple": true,
+                "resulting_clause": "`employees`.`last_name`"
+              } /* simplifying_order_by */
+            } /* optimizing_distinct_group_by_order_by */
+          },
+          {
+            "finalizing_table_conditions": [
+            ] /* finalizing_table_conditions */
+          },
+          {
+            "refine_plan": [
+              {
+                "table": "`employees`"
+              }
+            ] /* refine_plan */
+          },
+          {
+            "considering_tmp_tables": [
+              {
+                "adding_sort_to_table": "employees"
+              } /* filesort */
+            ] /* considering_tmp_tables */
+          }
+        ] /* steps */
+      } /* join_optimization */
+    },
+    {
+      "join_execution": {
+        "select#": 1,
+        "steps": [
+          {
+            "sorting_table": "employees",
+            "filesort_information": [
+              {
+                "direction": "asc",
+                "expression": "`employees`.`last_name`"
+              }
+            ] /* filesort_information */,
+            "filesort_priority_queue_optimization": {
+              "limit": 100001
+            } /* filesort_priority_queue_optimization */,
+            "filesort_execution": [
+            ] /* filesort_execution */,
+            "filesort_summary": {
+              "memory_available": 262144,
+              "key_size": 32,
+              "row_size": 169,
+              "max_rows_per_buffer": 1551,
+              "num_rows_estimate": 300252,
+              "num_rows_found": 300024,
+              "num_initial_chunks_spilled_to_disk": 82,
+              "peak_memory_used": 262144,
+              "sort_algorithm": "std::stable_sort",
+              "sort_mode": "<fixed_sort_key, packed_additional_fields>"
+            } /* filesort_summary */
+          }
+        ] /* steps */
+      } /* join_execution */
+    }
+  ] /* steps */
+}
+MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0
+          INSUFFICIENT_PRIVILEGES: 0
+1 row in set (0.00 sec)
+```
+
+- "filesort_summary" 섹션의 "sort_algorithm" 필드에 정렬 알고리즘이 표시된다.
+
+```shell
+"filesort_summary": {
+  "memory_available": 262144,
+  "key_size": 32,
+  "row_size": 169,
+  "max_rows_per_buffer": 1551,
+  "num_rows_estimate": 300252,
+  "num_rows_found": 300024,
+  "num_initial_chunks_spilled_to_disk": 82,
+  "peak_memory_used": 262144,
+  "sort_algorithm": "std::stable_sort",
+  "sort_mode": "<fixed_sort_key, packed_additional_fields>"
+} /* filesort_summary */
+```
+
+- 또한 "sort_mode" 필드에는 "<fixed_sort_key, packed_additional_fields>"가 표시된 것을 확인할 수 있다. 정확히는 MySQL 서버의 정렬 방식은 다음과 같이 3가지가 있다.
+  1. `<sort_key, rowid>`: 정렬 키와 레코드의 로우 아이디(Row ID)만 가져와서 정렬하는 방식
+  2. `<sort_key, additional_fields>`: 정렬 키와 레코드 전체를 가져와서 정렬하는 방식. 레코드의 칼럼들은 고정 사이즈로 메모리 저장
+  3. `<sort_key, packed_additional_fields>`: 정렬 키와 레코드 전체를 가져와서 정렬하는 방식. 레코드의 칼럼들은 가변 사이즈로 메모리 저장
+- 여기서 첫 번째 방식을 "투 패스" 정렬 방식, 두 번째와 세 번째 방식을 "싱글 패스" 정렬 방식이라 한다.
+
+##### 2-3-2-1. 싱글 패스 정렬 방식
 
 - 소트 버퍼에 정렬 기준 칼럼을 포함해 SELECT 대상이 되는 칼럼 전부를 담아서 정렬을 수행하는 정렬 방법이다.
 
+```shell
+mysql> SELECT emp_no, first_name, last_name
+       FROM employees
+       ORDER BY first_name;
+```
+
 <img src="img/optimizer1.png">
 
-- 테이블을 읽을 대 정렬에 필요하지 않은 칼럼까지 전부 읽어서 소트 버퍼에 담고 정렬을 수행한다.
+- 테이블을 읽을 때 '정렬에 필요하지 않은 칼럼까지 전부' 읽어서 소트 버퍼에 담고 정렬을 수행한다.
 - 정렬이 완료되면 정렬 버퍼의 내용을 그대로 클라이언트로 넘겨준다.
 
-### 투 패스 정렬 방식
+##### 2-3-2-2. 투 패스 정렬 방식
 
 - 정렬 대상 컬럼과 프라이머리 키 값만 소트 버퍼에 담아서 정렬을 수행하고, 정렬된 순서대로 다시 프라이머리 키로 테이블을 읽어오는 방식
+  - 싱글 패스 정렬 방식이 도입되기 이전부터 사용하던 방식. 하지만 MySQL 8.0에서도 여전히 특정 조건에서는 투 패스 정렬 방식을 사용한다.
 
 <img src="img/optimizer2.png">
 
+- `정렬에 필요한 칼럼` + `프라이머리 키`만 읽어서 정렬을 수행하고, 나머지 조회 값을 가져오는 방식이다.
 - 테이블을 2번 읽어야 한다는 점에서 비효율적이다.
+  - 새로운 정렬 방식인 싱글 패스는 이런 불합리가 없다.
 - 최신 버전에서는 일반적으로 싱글 패스 정렬 방식을 주로 사용한다. 대신 싱글 패스 방식은 더 많은 소트 버퍼의 공간이 필요하다.
-- 아래의 경우 MySQL은 싱글 패스 방식을 사용하지 못하고 투 패스 정렬 방식을 사용한다.
+  - ex) 128KB 정렬 버퍼. 투 패스는 7,000건 레코드 정렬 가능, 반면 싱글 패스는 절반인 3,500건 정도밖에 정렬할 수 없다.
+- 하지만, 아래의 경우 MySQL은 싱글 패스 방식을 사용하지 못하고 투 패스 정렬 방식을 사용한다.
   - 레코드의 크기가 `max_length_for_sort_data` 시스템 변수에 설정된 값보다 클 때
   - BLOB이나 TEXT 타입의 칼럼이 SELECT 대상에 포함될 때
 - 싱글 패스는 레코드의 크기나 건수가 작은 경우 빠른 반면, 투 패스 방식은 레코드의 크기나 건수가 상당히 많은 경우 효율적이다.
 
-## 정렬 처리 방법
+> #### 주의
+> - SELECT 쿼리에서 꼭 필요한 칼럼만 조회하지 않고, 모든 칼럼(*)을 가져오도록 개발할 때가 많을 것이다. 하지만 이는 정렬 버퍼를 몇 배에서 몇십 배까지 비효율적으로 사용할 가능성이 크다.
+> - SELECT 쿼리에서 꼭 필요한 칼럼만 조회하도록 쿼리를 작성하는 것이 좋다고 권장하는 것은 바로 이런 이유 때문이다.
+
+#### 2-3-3. 정렬 처리 방법
 
 - `ORDER BY`가 사용되면 반드시 아래 3가지 처리 방법 중 하나로 정렬이 처리된다.
-  - **인덱스를 사용한 정렬**: 별도 표기 없음
-  - **조인에서 드라이빙 테이블만 정렬**: "Using filesort" 메시지 표시됨
-  - **조인에서 조인 결과를 임시 테이블로 저장 후 정렬**: "Using temporary; Using filesort" 메시지 표시됨
+
+| 정렬 처리 방법                        | 실행 계획의 Extra 칼럼 내용                        |
+|:--------------------------------|:------------------------------------------|
+| **인덱스를 사용한 정렬**                 | 별도 표기 없음                                  |
+| **조인에서 드라이빙 테이블만 정렬**           | "Using filesort" 메시지 표시됨                  |
+| **조인에서 조인 결과를 임시 테이블로 저장 후 정렬** | "Using temporary; Using filesort" 메시지 표시됨 |
+
 - 먼저 옵티마이저는 정렬 처리를 위해 인덱스를 사용할 수 있는지 검토한다. 인덱스를 사용할 수 없다면 레코드를 검색에 정렬 버퍼에 저장하면서 정렬 처리(Filesort)를 한다.
 - Filesort를 할 때 옵티마이저는 2가지 방법 중 하나를 선택한다. (가능하다면 전자가 더 효율적인 방법이다.)
-  - 조인이 드라이빙 테이블만 정렬한 다음 조인을 수행
-  - 조인이 끝나고 일치하는 레코드를 모두 가져온 후 정렬을 수행
-- 2개 이상의 테이블을 조인해서 그 결과를 정렬해야 한다면 임시 테이블이 필요할 수 있다.
-- 조인의 드라이빙 테이블만 정렬할 때는 2개 이상의 테이블이 조인되면서 정렬이 실행되지만 임시 테이블을 사용하지 않는다. (조인되는 테이블이 정렬 기준이 아니기 때문에!)
+  1. 조인이 드라이빙 테이블만 정렬한 다음 조인을 수행
+  2. 조인이 끝나고 일치하는 레코드를 모두 가져온 후 정렬을 수행
 
-### 정렬 처리 방법의 성능 비교 - 스트리밍 방식
+##### 2-3-3-1. 인덱스를 이용한 정렬
+
+- 인덱스를 사용한 정렬을 위해서는 반드시 `ORDER BY`에 면시된 칼럼이 제일 먼저 읽는 테이블에 속하고, `ORDER BY`의 순서대로 생성된 인덱스가 있어야 한다.
+  - 또한 `WHERE` 절에 첫 번째로 읽는 테이블의 칼럼에 대한 조건이 있다면 그 조건과 `ORDER BY`는 같은 인덱스를 사용할 수 있어야 한다.
+  - 그리고 B-Tree 계열의 인덱스가 아닌 해시 인덱스나 전문 검색 인덱스 등에서는 인덱스를 이용한 정렬을 사용할 수 없다.
+  - 여러 테이블이 조인되는 경우에는 `네스티드 루프 Nested-loop` 방식의 조인에서만 이 방식을 사용할 수 있다.
+- 인덱스를 이용해 정렬이 처리되는 경우에는 실제 인덱스의 값이 정렬돼 있기 때문에 인덱스의 순서대로 읽기만 하면 된다.
+
+##### 2-3-3-2. 조인의 드라이빙 테이블만 정렬
+
+- 조인이 수행되면 레코드의 건수가 몇 배로 불어나고, 레코드 하나하나의 크기도 늘어난다.
+  - 따라서 조인을 실행하기 전에 첫 번째 테이블의 레코드를 먼저 정렬한 다음 조인을 실행하는 것이 정렬의 차선책이 될 것이다.
+  - 이 방법으로 정렬이 처리되려면 조인에서 첫 번째로 읽히는 테이블(드라이빙 테이블)의 칼럼만으로 `ORDER BY` 절을 작성해야 한다.
+
+<img src="img/sort01.jpg">
+
+##### 2-3-3-3. 임시 테이블을 이용한 정렬
+
+- 2개 이상의 테이블을 조인해서 그 결과를 정렬해야 한다면 임시 테이블이 필요할 수 있다.
+  - 예외! 조인의 드라이빙 테이블만 정렬할 때는 2개 이상의 테이블이 조인되면서 정렬이 실행되지만 임시 테이블을 사용하지 않는다. (조인되는 테이블이 정렬 기준이 아니기 때문에!)
+- 조인의 결과를 임시 테이블에 저장하고, 그 결과를 다시 정렬하는 과정을 거친다. 이 방법은 정렬의 3가지 방법 가운데 정렬해야 할 레코드 건수가 가장 많기 때문에 가장 느린 정렬 방법이다.
+- 아래와 같이 정렬 기준이 드라이빙 테이블이 아니라 드리븐 테이블에 있다면 이 쿼리는 조인된 데이터를 가지고 정렬해야 하면, 이 경우 임시 테이블을 활용한다.
+
+```shell
+mysql> SELECT *
+       FROM employees e, salaries s
+       WHERE s.emp_no=e.emp_no
+         AND e.emp_no BETWEEN 100002 AND 100010
+       ORDER BY s.salary;
+```
+
+- 위 쿼리의 실행계획을 살펴보자. Extra 칼럼에 `Using where; Using temporary; Using filesort`라는 코멘트가 표시된다.
+  - 이는 조인의 결과를 임시 테이블에 저장하고, 그 결과를 다시 정렬 처리했음을 의미한다.
+
+```shell
++----+-------+-------+---------+----------------------------------------------+
+| id | table | type  | key     | Extra                                        |
++----+-------+-------+---------+----------------------------------------------+
+|  1 | e     | range | PRIMARY | Using where; Using temporary; Using filesort |
+|  1 | s     | ref   | PRIMARY | NULL                                         |
++----+-------+-------+---------+----------------------------------------------+
+```
+
+<img src="img/sort02.jpg">
+
+
+##### 2-3-3-4. 정렬 처리 방법의 성능 비교
+
+- 웹 서비스용 쿼리에서는 `ORDER BY`와 함께 `LIMIT`이 거의 필수로 사용된다.
+  - `LIMIT`은 테이블이나 처리 결과의 일부만 가져오기 때문에 MySQL 서버가 처리해야 할 작업량을 줄이는 역할을 한다.
+- 그런데 `ORDER BY`나 `GROUP BY` 같은 작업은 `WHERE` 조건을 만족하는 레코드를 `LIMIT` 건수만큼만 가져와서는 처리할 수 없다.
+  - 조건을 만족하는 레코드를 모두 가져와 정렬을 수행하거나, 그루핑 작업을 실행해야만 비로소 `LIMIT`으로 건수를 제한할 수 있다.
+  - 아무리 WHERE 조건이 인덱스를 잘 활용하도록 튜닝해도 잘못된 `ORDER BY`나 `GROUP BY` 때문에 쿼리가 느려지는 경우가 자주 발생한다.
+
+###### 2-3-3-4-1. 스트리밍 방식
 
 - 레코드가 검색될 때마다 바로바로 클라이언트로 전송해주는 방식
-- 스트리밍으로 처리되는 쿼리는 쿼리가 얼마나 많은 레코드를 조회하느냐에 상관없이 빠른 응답 시간을 보장해준다.
-- `LIMIT`처럼 결과 건수를 제한하는 조건들은 쿼리의 전체 실행 시간을 상당히 줄여줄 수 있다면 장점이 있다.
+- 일치하는 레코드를 찾는 즉시 전달받기 때문에 동시에 데이터의 가공 작업을 시작할 수 있다.
+  - 스트리밍으로 처리되는 쿼리는 쿼리가 얼마나 많은 레코드를 조회하느냐에 상관없이 빠른 응답 시간을 보장해준다.
+- 또한, `LIMIT`처럼 결과 건수를 제한하는 조건들은 쿼리의 전체 실행 시간을 상당히 줄여줄 수 있다면 장점이 있다.
 
-### 정렬 처리 방법의 성능 비교 - 버퍼링 방식
+###### 2-3-3-4-2. 버퍼링 방식
 
 - `ORDER BY`나 `GROUP BY` 같은 처리는 쿼리의 결과가 스트리밍되는 것을 불가능하게 한다.
-- `WHERE` 조건에 일치하는 모든 레코드를 가져온 후, 정렬하거나 그루핑해서 차례대로 보내야 하기 때문이다.
-- MySQL 서버에서는 모든 레코드를 검색하고 정렬 작업을 하는 동안 클라이언트는 아무것도 하지 않고 기다려야 하기 때문에 응답 속도가 느려진다.
-- 버퍼리 방식으로 처리되는 쿼리는 `LIMIT`처럼 결과 건수를 제한하는 조건이 있어도 성능 향상에 별로 도움이 되지 않는다. 레코드 건수는 줄일 수 있지만 MySQL 서버가 해야하는 작업량에는 그다지 변화가 없기 때문이다.
+  - `WHERE` 조건에 일치하는 모든 레코드를 가져온 후, 정렬하거나 그루핑해서 차례대로 보내야 하기 때문이다.
+  - MySQL 서버에서는 모든 레코드를 검색하고 정렬 작업을 하는 동안 클라이언트는 아무것도 하지 않고 기다려야 하기 때문에 응답 속도가 느려진다.
+- 버퍼링 방식으로 처리되는 쿼리는 먼저 결과를 모아서 MySQL 서버에서 일괄 가공해야 하므로 모든 결과를 스토리지 엔진으로부터 가져올 때까지 기다려야 한다.
+  - 따라서 `LIMIT`처럼 결과 건수를 제한하는 조건이 있어도 성능 향상에 별로 도움이 되지 않는다.
+  - 레코드 건수는 줄일 수 있지만 MySQL 서버가 해야하는 작업량에는 그다지 변화가 없기 때문이다.
 
-### 정렬 처리 방법 정리
+##### 정렬 처리 방법 정리
 
-- ORDER BY의 3가지 처리 방법 중 인덱스를 사용한 정렬 방식만 스트리밍 형태의 처리이다.
+- `ORDER BY`의 3가지 처리 방법 중 인덱스를 사용한 정렬 방식만 스트리밍 형태의 처리이다.
 - "조인에서 드라이빙 테이블만 정렬"과 "조인에서 조인 결과를 임시 테이블로 저장 후 정렬"은 모두 버퍼링된 후에 정렬된다.
-- 즉 인덱스를 사용한 방식은 LIMIT으로 제한된 건수만큼만 읽으면 바로바로 클라이언트로 전송해줄 수 있다는 말이다.
+- 즉 인덱스를 사용한 방식은 `LIMIT`으로 제한된 건수만큼만 읽으면 바로바로 클라이언트로 전송해줄 수 있다는 말이다.
+
+##### 정렬 처리 방법 예시
+
+- 예시 가정
+1. `tb1`의 레코드가 100건
+2. `tb2` 레코드가 1,000건
+3. `tb1` 테이블 1건당, `tb2` 테이블 10건이 있음을 가정
+4. 두 테이블 조인 결과는 전체 1,000건이라고 가정한 예시
+
+- 먼저 `tb1`이 드라이빙 테이블이라고 가정했을 때
+
+| 정렬 방법           | 읽어야 할 건수                           | 조인 횟수                     | 정렬해야 할 대상 건수                     |
+|:----------------|:-----------------------------------|:--------------------------|:---------------------------------|
+| 인덱스 사용          | 드라이빙 테이블: 1건<br/>드리븐 테이블: 10건      | 1번                        | 0건                               |
+| 조인 드라이빙 테이블만 정렬 | 드라이빙 테이블: 100건<br/>드리븐 테이블: 10건    | 1번                        | 100건(드라이빙 테이블 건수만큼 정렬 필요)        |
+| 임시 테이블 사용 후 정렬  | 드라이빙 테이블: 100건<br/>드리븐 테이블: 1,000건 | 100번(드라이빙 테이블 건수만큼 조인 발생) | 1,000건(조인된 결과 레코드 건수를 전부 정렬해야 함) |
+
+- `tb2`가 드라이빙 테이블이라고 가정했을 때
+
+| 정렬 방법           | 읽어야 할 건수                           | 조인 횟수                       | 정렬해야 할 대상 건수                     |
+|:----------------|:-----------------------------------|:----------------------------|:---------------------------------|
+| 인덱스 사용          | 드라이빙 테이블: 10건<br/>드리븐 테이블: 10건     | 10번                         | 0건                               |
+| 조인 드라이빙 테이블만 정렬 | 드라이빙 테이블: 1000건<br/>드리븐 테이블: 10건   | 100번                        | 1,000건(드라이빙 테이블 건수만큼 정렬 필요)      |
+| 임시 테이블 사용 후 정렬  | 드라이빙 테이블: 1,000건<br/>드리븐 테이블: 100건 | 1,000번(드라이빙 테이블 건수만큼 조인 발생) | 1,000건(조인된 결과 레코드 건수를 전부 정렬해야 함) |
+
 - 어느 테이블이 먼저 드라이빙되어 조인되는지도 중요하지만 어떤 정렬 방식으로 처리되는지는 더 큰 성능 차이를 만든다.
+- 가능하다면 인덱스를 사용한 정렬로 유도하고, 그렇지 못하다면 최소한 드라이빙 테이블만 정렬해도 되는 수준으로 유도하는 것이 좋은 튜닝 방법이라고 할 수 있다.
+
 
 > **갑자기 궁금해서 찾아본 정보!**
 > 
@@ -239,9 +540,9 @@ where order_date >= '2023-11-21 00:00:00'
 and order_date < '2023-11-22 23:59:59'
 ```
 
-### 정렬 관련 상태 변수
+#### 2-3-4. 정렬 관련 상태 변수
 
-- MySQL 서버는 처리하는 주요 작업에 대해서는 해당 작업의 실행 횟루를 상태 변수로 저장한다.
+- MySQL 서버는 처리하는 주요 작업에 대해서는 해당 작업의 실행 횟수를 상태 변수로 저장한다.
 - 지금까지 몇 건의 레코드나 정렬 처리를 수행했는지, 소트 버퍼 간의 병합 작업은 몇 번이나 발생했는지 등을 아래 명령어를 통해 확인할 수 있다.
 
 ```sql
