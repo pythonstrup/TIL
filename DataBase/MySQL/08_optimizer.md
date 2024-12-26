@@ -563,22 +563,25 @@ mysql> SHOW STATUS LIKE 'Sort%';
 - `Sort_rows`는 지금까지 정렬한 전체 레코드 건수를 의미한다.
 - `Sort_scan`은 풀 테이블 스캔을 통해 검색된 결과에 대한 정렬 작업 횟수다.
 
-## GROUP BY 처리
+### 2-4. GROUP BY 처리
 
 - `GROUP BY` 또한 `ORDER BY`와 마찬가지로 쿼리가 스트리밍된 처리를 할 수 없게 하는 기능 중 하나다.
 - `GROUP BY`에서는 `HAVING` 절을 사용할 수 있는데, 결과에 대해 필터링 역할을 수행한다.
 - `GROUP BY`에서 사용된 조건은 인덱스를 사용해서 처리될 수 없으므로 `HAVING` 절을 튜닝하려고 하는 어리석음은 범하지 말자.
 - `GROUP BY`도 인덱스를 사용하는 경우와 그렇지 못한 경우로 나눌 수 있다.
+- 인덱스를 사용하는 경우
   - 인덱스를 차례대로 읽는 **인덱스 스캔** 방법 
   - 인덱스를 건너뛰면서 읽는 **루스 인덱스 스캔** 방법
-- 인덱스를 사용하지 못하는 경우 임시 테이블을 사용한다.
+- 인덱스를 사용하지 못하는 경우 
+  - 임시 테이블을 사용한다.
 
-### 인덱스 스캔(타이트 인덱스 스캔)
+#### 2-4-1. 인덱스 스캔을 이용하는 GROUP BY(타이트 인덱스 스캔)
 
 - 조인의 드라이빙 테이블에 속한 컬럼만 이용해 그루핑할 때 `GROUP BY` 칼럼으로 이미 인덱스가 있다면 그 인덱스를 차례대로 읽으면서 그루핑 작업을 수행하고 그 결과로 조인을 처리한다.
 - `GROUP BY`가 인덱스로 처리된다 하더라도 그룹 합수(Aggregation Function) 등의 그룹값을 처리해야 해서 임시 테이블이 필요할 때도 있다.
+- 이러한 그루핑 방식을 사용하는 쿼리의 실행 계획에서는 Extra 칼럼에 별도로 `GROUP BY` 코멘트 "Using index for group-by"나 임시 테이블 사용 또는 정렬 관련 코멘트 "Using temporary, Using filesort"가 표시되지 않는다.
 
-### 루스 인덱스 스캔
+### 루스 인덱스 스캔을 이용하는 GROUP BY
 
 - 인덱스의 레코드를 건너뛰면서 필요한 부부만 읽어서 가져오는 것을 의미한다.
 - 옵티마이저가 루스 인덱스 스캔을 사용할 때는 실행 계획의 Extra 칼럼에 "Using index for group-by" 코멘트가 표시된다.
@@ -603,71 +606,94 @@ mysql> EXPLAIN
     -> FROM salaries
     -> WHERE from_date='1985-03-01'
     -> GROUP BY emp_no;
-+----+-------------+----------+------------+-------+-------------------+---------+---------+------+--------+----------+---------------------------------------+
-| id | select_type | table    | partitions | type  | possible_keys     | key     | key_len | ref  | rows   | filtered | Extra                                 |
-+----+-------------+----------+------------+-------+-------------------+---------+---------+------+--------+----------+---------------------------------------+
-|  1 | SIMPLE      | salaries | NULL       | range | PRIMARY,ix_salary | PRIMARY | 7       | NULL | 299646 |   100.00 | Using where; Using index for group-by |
-+----+-------------+----------+------------+-------+-------------------+---------+---------+------+--------+----------+---------------------------------------+
++----+----------+-------+---------+--------+----------+---------------------------------------+
+| id | table    | type  | key     | rows   | filtered | Extra                                 |
++----+----------+-------+---------+--------+----------+---------------------------------------+
+|  1 | salaries | range | PRIMARY | 299646 |   100.00 | Using where; Using index for group-by |
++----+----------+-------+---------+--------+----------+---------------------------------------+
 1 row in set, 1 warning (0.00 sec)
 ```
 
 - 위 쿼리는 아래의 순서대로 실행된다.
-  1. `(emp_no, from_date)` 인덱스를 차례대로 스캔하면 `emp_no`의 첫 번째 유일한 값(그룹 키) '10001'을 찾아낸다. 
-  2. `(emp_no, from_date)` 인덱스에서 `emp_no`가 '10001'인 것 중에서 from_date 값이 '1985-03-01'인 레코드만 가져온다. '10001' 값과 WHERE 절에 사용된 `from_date='1985-03-01'` 조건을 합쳐서 `emp_no=10001 AND from_date='1985-03-01'` 조건으로 (emp_no, from_date) 인덱스를 검색하는 것과 거의 흡사하다.
-  3. `(emp_no, from_date)` 인덱스에서 `emp_no`의 그 다음 유니크한 값을 가져온다. (그룹키)
-  4. 결과가 더 없으면 처리를 종료하고 결과가 있다면 2번 과정으로 돌아가 반복 수행한다.
+1. `(emp_no, from_date)` 인덱스를 차례대로 스캔하면 `emp_no`의 첫 번째 유일한 값(그룹 키) '10001'을 찾아낸다. 
+2. `(emp_no, from_date)` 인덱스에서 `emp_no`가 '10001'인 것 중에서 from_date 값이 '1985-03-01'인 레코드만 가져온다. 
+    - '10001' 값과 WHERE 절에 사용된 `from_date='1985-03-01'` 조건을 합쳐서 `emp_no=10001 AND from_date='1985-03-01'` 조건으로 (emp_no, from_date) 인덱스를 검색하는 것과 거의 흡사하다.
+3. `(emp_no, from_date)` 인덱스에서 `emp_no`의 그 다음 유니크한 값을 가져온다. (그룹키)
+4. 결과가 더 없으면 처리를 종료하고 결과가 있다면 2번 과정으로 돌아가 반복 수행한다.
+
+- MySQL의 루스 인덱스 스캔 방식은 단일 테이블에 대해 수행되는 `GROUP BY` 처리에만 사용할 수 있다.
+- 또한 `Prefix Index, 칼럼의 앞쪽 일부만으로 생성된 인덱스`는 루스 인덱스 스캔을 사용할 수 없다.
+- 인덱스 레인지 스캔은 유니크한 값의 수가 많을수록 성능이 향상되는 반면 루스 인덱스 스캔에서는 인덱스의 유니크한 값의 수가 적을수록 성능이 향상된다.
+  - 즉, 루스 인덱스 스캔은 분포도가 좋지 않은 인덱스일수록 더 빠른 결과를 만들어낸다.
+- 루스 인덱스 스캔이 사용될 수 있을지 없을지 판단하는 것은 WHERE 절의 조건이나 ORDER BY 절이 인덱스를 사용할 수 있을지 없을지 판단하는 것보다는 더 어렵다.
 
 ### 임시 테이블을 사용하는 GROUP BY
 
 - 기준 칼럽이 드라이빙 테이블에 있든 드리븐 테이블에 있는 관계 없이 인덱스를 사용하지 못한다면 임시 테이블을 사용한다.
 - 실행 계획을 살펴보면 Extra 칼럼에 "Using temporary"라는 메시지가 표시된다.
 
-```sql
+```shell
 mysql> EXPLAIN 
     SELECT e.last_name, AVG(s.salary) 
     FROM employees e, salaries s 
     WHERE s.emp_no = e.emp_no 
     GROUP BY e.last_name;
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+-----------------+
-| id | select_type | table | partitions | type | possible_keys | key     | key_len | ref                | rows   | filtered | Extra           |
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+-----------------+
-|  1 | SIMPLE      | e     | NULL       | ALL  | PRIMARY       | NULL    | NULL    | NULL               | 300252 |   100.00 | Using temporary |
-|  1 | SIMPLE      | s     | NULL       | ref  | PRIMARY       | PRIMARY | 4       | employees.e.emp_no |      9 |   100.00 | NULL            |
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+-----------------+
++----+-------+------+---------+--------+-----------------+
+| id | table | type | key     | rows   | Extra           |
++----+-------+------+---------+--------+-----------------+
+|  1 | e     | ALL  | NULL    | 300252 | Using temporary |
+|  1 | s     | ref  | PRIMARY |      9 | NULL            |
++----+-------+------+---------+--------+-----------------+
 2 rows in set, 1 warning (0.00 sec)
+```
+
+- MySQL 8.0 이전 버전까지는 `GROUP BY`가 사용된 쿼리는 그루핑되는 칼럼을 기준으로 묵시적인 정렬까지 수행했다.
+  - `GROUP BY`만 해도 Extra에 "Using temporary"와 "Using filesort"가 같이 찍혔다는 얘기다.
+- 하지만 MySQL 8.0에서는 GROUP BY가 필요한 경우 내부적으로 `GROUP BY` 절의 칼럼들로 구성된 유니크 인덱스를 가진 임시 테이블을 만들어서 중복 제거와 집합 함수 연산을 수행한다.
+  - 그리고 조인의 결과를 한 건씩 가져와 임시 테이블에서 중복 체크를 하면서 `INSERT` 또는 `UPDATE`를 실행한다.
+
+```mysql
+CREATE TEMPORARY TABLE ... (
+    last_name VARCHAR(16),
+    salary INT,
+    UNIQUE INDEX ux_lastname(last_name)
+)
 ```
 
 - `GROUP BY`와 `ORDER BY`가 같이 실행되면 명시적으로 정렬 작업을 수행하는데 Extra 칼럼에 "Using temporary와 Using filesort"가 같이 표시된다.
 
-```sql
+```shell
 mysql> EXPLAIN 
     SELECT e.last_name, AVG(s.salary) 
     FROM employees e, salaries s 
     WHERE s.emp_no = e.emp_no 
     GROUP BY e.last_name 
-    ORDER BY e.last_name;;
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+---------------------------------+
-| id | select_type | table | partitions | type | possible_keys | key     | key_len | ref                | rows   | filtered | Extra                           |
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+---------------------------------+
-|  1 | SIMPLE      | e     | NULL       | ALL  | PRIMARY       | NULL    | NULL    | NULL               | 300252 |   100.00 | Using temporary; Using filesort |
-|  1 | SIMPLE      | s     | NULL       | ref  | PRIMARY       | PRIMARY | 4       | employees.e.emp_no |      9 |   100.00 | NULL                            |
-+----+-------------+-------+------------+------+---------------+---------+---------+--------------------+--------+----------+---------------------------------+
+    ORDER BY e.last_name;
++----+-------+------+---------+--------+---------------------------------+
+| id | table | type | key     | rows   | Extra                           |
++----+-------+------+---------+--------+---------------------------------+
+|  1 | e     | ALL  | NULL    | 300252 | Using temporary; Using filesort |
+|  1 | s     | ref  | PRIMARY |      9 | NULL                            |
++----+-------+------+---------+--------+---------------------------------+
 2 rows in set, 1 warning (0.00 sec)
 ```
 
-## DISTINCT 처리
+### 2-5. DISTINCT 처리
 
-- MIN, MAX, COUNT와 같은 집합와 함께 사용되는 경우와 집합 함수가 없는 경우 2가지로 구분해서 볼 수 있다.
+- 특정 칼럼의 유니크한 값만 조회하려면 `SELECT` 쿼리에 `DISTINCT`를 사용한다.
+- `MIN`, `MAX`, `COUNT`와 같은 집합와 함께 사용되는 경우와 집합 함수가 없는 경우 2가지로 구분해서 볼 수 있다.
+  - 각 경우마다 `DISTINCT` 키워드가 미치는 범위가 달라진다.
+- 또한 `DISTINCE` 처리가 인덱스를 사용하지 못할 때 항상 임시 테이블이 필요하다. 하지만 실행 계획의 Extra 칼럼에는 "Using temporary" 메시지가 출력되지 않는다.
 
-### SELECT DISTINCT
+#### 2-5-1. SELECT DISTINCT ...
 
-- 집합 함수 없이 단순히 `SELECT`만을 할 때는 `GROUP BY`와 동일한 방식으로 처리된다.
-- MySQL 8.0 버전부터는 `GROUP BY`를 수행하는 쿼리에 `ORDER BY`가 없으면 정렬을 사용하지 않는다.
-- 따라서 아래의 두 쿼리는 내부적으로 같은 작업을 수행한다.
+- 단순히 `SELECT`되는 레코드 중에서 유니크한 레코드만 가져오고자 하면 `SELECT DISTINCT` 형태의 쿼리 문장을 사용한다.
+  - 이 경우에는 `GROUP BY`와 동일한 방식으로 처리된다.
+- 특히 MySQL 8.0 버전부터는 `GROUP BY`를 수행하는 쿼리에 `ORDER BY` 절이 없으면 정렬을 사용하지 않기 때문에 다음의 두 쿼리는 내부적으로 같은 작업을 수행한다.
 
-```sql
-SELECT DISTINCT emp_no FROM salaries;
-SELECT emp_no FROM salaries GROUP BY emp_no;
+```shell
+mysql> SELECT DISTINCT emp_no FROM salaries;
+mysql> SELECT emp_no FROM salaries GROUP BY emp_no;
 ```
 
 - 하나 주의할 점이 있는데, DISTINCT는 SELECT하는 레코드(튜플)을 유니크하게 `SELECT`하는 것이지, 특정 칼럼만 유니크하게 조회하는 것이 아니다.
@@ -677,31 +703,33 @@ SELECT emp_no FROM salaries GROUP BY emp_no;
 SELECT DISTINCT(first_name), last_name FROM employees;
 ```
 
-- 문제 없이 실행되는 것 같아 보이지만, MySQL 서버는 DISTINCT 뒤의 괄호를 그냥 의미 없이 사용된 괄호로 해석하고 제거해버린다. DISTINCT는 함수가 아니기 때문에 그 뒤의 괄호는 의미가 없는 것이다.
-- 따라서 SELECT 절에 사용된 DISTINCT 키워드는 조회되는 모든 칼럼에 영향을 미친다.
+- 문제 없이 실행되는 것 같아 보이지만, MySQL 서버는 `DISTINCT` 뒤의 괄호를 그냥 의미 없이 사용된 괄호로 해석하고 제거해버린다. `DISTINCT`는 함수가 아니기 때문에 그 뒤의 괄호는 의미가 없는 것이다.
+- 따라서 `SELECT` 절에 사용된 `DISTINCT` 키워드는 조회되는 모든 칼럼에 영향을 미친다.
+- 단, 이어서 설명할 집합 함수와 함께 사용된 `DISTINCT`의 경우 조금 다르다.
 
-### 집합 함수와 함께 사용된 DISTINCT
+#### 2-5-2. 집합 함수와 함께 사용된 DISTINCT
 
-- 집합 함수를 사용하는 경우 일반적으로 SELECT DISTINCT와는 다르게 해석된다.
-- 집합 함수 내에서 사용된 DISTINCT는 그 집합 함수의 인자로 전달된 칼럼값이 유니크한 것들을 가져온다.
+- 집합 함수를 사용하는 경우 일반적으로 `SELECT DISTINCT`와는 다르게 해석된다.
+- 집합 함수 내에서 사용된 `DISTINCT`는 그 집합 함수의 인자로 전달된 칼럼값이 유니크한 것들을 가져온다.
 
-```sql
+```shell
 mysql> EXPLAIN 
     SELECT COUNT(DISTINCT s.salary) 
     FROM employees e, salaries s 
     WHERE e.emp_no = s.emp_no 
       AND e.emp_no BETWEEN 100001 AND 100100;
-+----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
-| id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref                | rows | filtered | Extra                    |
-+----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
-|  1 | SIMPLE      | e     | NULL       | range | PRIMARY       | PRIMARY | 4       | NULL               |  100 |   100.00 | Using where; Using index |
-|  1 | SIMPLE      | s     | NULL       | ref   | PRIMARY       | PRIMARY | 4       | employees.e.emp_no |    9 |   100.00 | NULL                     |
-+----+-------------+-------+------------+-------+---------------+---------+---------+--------------------+------+----------+--------------------------+
++----+-------+-------+---------+------+--------------------------+
+| id | table | type  | key     | rows | Extra                    |
++----+-------+-------+---------+------+--------------------------+
+|  1 | e     | range | PRIMARY |  100 | Using where; Using index |
+|  1 | s     | ref   | PRIMARY |    9 | NULL                     |
++----+-------+-------+---------+------+--------------------------+
 2 rows in set, 1 warning (0.00 sec)
 ```
 
 - 위 쿼리는 내부적으로 `COUNT(DISTINCT s.salary)`를 처리하기 위해 임시 테이블을 사용한다.
 - 하지만 실행 계획에는 임시 테이블을 사용한다는 메시지인 "Using temporary"가 보이지 않는다.
+- 이때 임시 테이블의 salary 칼럼에는 유니크 인덱스가 생성되기 때문에 레코드 건수가 많아진다면 상당히 느려질 수 있는 형태의 쿼리가 된다.
 
 ## 내부 임시 테이블 활용
 
