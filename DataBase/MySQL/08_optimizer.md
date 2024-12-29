@@ -808,177 +808,208 @@ mysql> SHOW SESSION STATUS LIKE 'Created_tmp%';
 - `Created_tmp_disk_tables`:  디스크에 내부 임시 테이블이 만들어진 개수만 누적해서 가지고 있는 상태 값이다.
 - `Created_tmp_tables`: 쿼리의 처리를 위해 만들어진 내부 임시 테이블의 개수를 누적하는 상태 값이다. 이 값은 내부 임시 테이블이 메모리에 만들어졌는지 디스크에 만들어졌는지를 구분하지 않고 모두 누적한다.
 
-# 고급 최적화
+## 3. 고급 최적화
 
 - MySQL 서버의 옵티마이저가 실행 계획을 수립할 때 통계 정보와 옵티마이저 옵션을 결합해서 최적의 실행 계획을 수립하게 된다.
 - 옵티마이저 옵션은 조인 관련되 옵티마이저 옵션과 옵티마이저 스위치로 구분할 수 있다.
+  - 조인 관련된 옵티마이저 옵션은 MySQL 서버 초기 버전부터 제공되던 옵션이지만, 많은 사람이 그다지 신경 쓰지 않는 편이다. 하지만 조인이 많이 사용되는 서비스에서는 알아야 하는 부분이기도 하다.
+  - 옵티마이저 스위치는 MySQL 5.5부터 지원되기 시작했고, 이들은 MySQL 서버의 고급 최적화 기능들을 활성화할지를 제어하는 용도로 사용된다.
 
-## 옵티마이저 스위치 옵션
+### 3-1. 옵티마이저 스위치 옵션
 
-- 각 스위치 옵션은 default, on, off 중에서 하나를 고를 수 있다.
+- `optimizer_switch` 시스템 변수를 이용해서 제어하며, 여러 개의 옵션을 세트로 묶어서 설정하는 방식을 사용한다.
+- 각 스위치 옵션은 `default`, `on`, `off` 중에서 하나를 고를 수 있다.
 
-<table>
-    <thead>
-        <tr>
-            <th>옵티마이저 스위치 이름</th>
-            <th>기본값</th>
-            <th>설명</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>batched_key_access</td>
-            <td>off</td>
-            <td>BKA 조인 알고리즘 결정</td>
-        </tr>
-        <tr>
-            <td>block_nested_loop</td>
-            <td>on</td>
-            <td>Block Nested Loop 조인 알고리즘 설정</td>
-        </tr>
-        <tr>
-            <td>engine_condition_pushdown</td>
-            <td>on</td>
-            <td>Engin Condition Pushdown 기능 설정</td>
-        </tr>
-        <tr>
-            <td>index_condition_pushdown</td>
-            <td>on</td>
-            <td>Index Condition Pushdown 기능 설정</td>
-        </tr>
-        <tr>
-            <td>use_index_extensions</td>
-            <td>on</td>
-            <td>Index Extension 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>index_merge</td>
-            <td>on</td>
-            <td>Index Merge 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>index_merge_intersection</td>
-            <td>on</td>
-            <td>Index Merge Intersection 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>index_merge_sort_union</td>
-            <td>on</td>
-            <td>Index Merge Union 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>mrr</td>
-            <td>on</td>
-            <td>MRR 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>mrr_cost_based</td>
-            <td>on</td>
-            <td>비용 기반의 MRR 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>semijoin</td>
-            <td>on</td>
-            <td>세미 조인 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>firstmatch</td>
-            <td>on</td>
-            <td>FirshMatch 세미 조인 최적화</td>
-        </tr>
-        <tr>
-            <td>loosescan</td>
-            <td>on</td>
-            <td>LooseScan 세미 조인 최적화 설정</td>
-        </tr>
-        <tr>
-            <td>materialization</td>
-            <td>on</td>
-            <td>Materialization 최적화 설정(Materialization 세미 조인 최적화 포함)</td>
-        </tr>
-        <tr>
-            <td>subquery_materialization_cost_based</td>
-            <td>on</td>
-            <td>비용 기반의 Materialization 최적화 설정</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td></td>
-            <td></td>
-        </tr>
-    </tbody>
-</table>
+| 옵티마이저 스위치 이름                          | 기본값   | 설명                                                    |
+|:--------------------------------------|:------|:------------------------------------------------------|
+| `batched_key_access`                  | `off` | BKA 조인 알고리즘 결정                                        |
+| `block_nested_loop`                   | `on`  | Block Nested Loop 조인 알고리즘 설정                          |
+| `engine_condition_pushdown`           | `on`  | Engine Condition Pushdown 기능 설정                       |
+| `index_condition_pushdown`            | `on`  | Index Condition Pushdown 기능 설정                        |
+| `use_index_extensions`                | `on`  | Index Extension 최적화 설정                                |
+| `index_merge`                         | `on`  | Index Merge 최적화 설정                                    |
+| `index_merge_intersection`            | `on`  | Index Merge Intersection 최적화 설정                       |
+| `index_merge_sort_union`              | `on`  | Index Merge Union 최적화 설정                              |
+| `mrr`                                 | `on`  | MRR 최적화 설정                                            |
+| `mrr_cost_based`                      | `on`  | 비용 기반의 MRR 최적화 설정                                     |
+| `semijoin`                            | `on`  | 세미 조인 최적화 설정                                          |
+| `firstmatch`                          | `on`  | FirstMatch 세미 조인 최적화                                  |
+| `loosescan`                           | `on`  | LooseScan 세미 조인 최적화 설정                                |
+| `materialization`                     | `on`  | Materialization 최적화 설정 (Materialization 세미 조인 최적화 포함) |
+| `subquery_materialization_cost_based` | `on`  | 비용 기반의 Materialization 최적화 설정                         |
 
-### MRR과 배치 키 엑세스(mmr & batched_key_access)
+- 옵티마이저 스위치 옵션은 글로벌과 세션별 모두 설정할 수 있는 시스템 변수이므로 MySQL 서버 전체적으로 또는 현재 커넥션에 대해서만 다음과 같이 설정할 수 있다.
+- Global 설정
 
-- MRR(Multi-Range Read) 또는 DS-MRR(Disk Sweep Multi-Range Read)는 드라이빙 테이블과 드리븐 테이블을 조회 최적화를 위해 사용한다.
-- MySQL 서버는 조인 대상 테이블 중 하나로부터 레코드를 읽어서 조인 버퍼에 버퍼링한다. 드라이빙 테이블의 레코드를 읽어서 드리븐 테이블과의 조인을 즉시 실행하지 않고 조인 대상을 버퍼링하는 것이다.
-- 조인 버퍼에 레코드가 가득 차면 MySQL 엔진은 버퍼링된 레코드를 스토리지 엔진으로 한 번에 요청한다. 이를 통해 스토리지 엔진은 읽어야할 레코드들을 데이터 페이지에 정렬된 순서로 접근해서 디스크의 데이터 페이지 읽기를 최소화할 수 있는 것이다.
-- MMR을 응용해서 실행되는 조인 방식인 BKA 조인 최적화 방식도 있는데 기본값이 off이다. 그 이유는 BKA 조인을 사용하면 부가적인 정렬 작업이 필요해지기 때문에 오히려 성능이 안 좋아질 수 있다는 단점이 존재하기 때문이다.
+```shell
+mysql> SET GLOBAL optimizer_switch='index_merge=on,index_merge_union=on';
+```
 
-### 블록 네스티드 루프 조인(block_nested_loop)
+- Session별 설정
 
-**주의: MySQL 8.0.18 버전부터 해시 조인 알고리즘이 도입되었고, MySQL 8.0.20 버전부터는 블록 네스티드 조인은 더이상 사용되지 않고 해시 조인 알고리즘을 대체된다. 따라서 Extra 칼럼에 "Using Join Buffer(block nested loop)" 메시지가 표시되지 않을 수 있다.**
+```shell
+mysql> SET SESSION optimizer_switch='index_merge=on,index_merge_union=on';
+```
 
-- MySQL에서 사용되는 대부분의 조인이 네스티드 루프 조인이다. 조인의 연결 조건이 되는 칼럼에 모두 인덱스가 있는 경우 사용되는 조인 방식이다.
+- 아래와 같이 `SET_VAR` 옵티마이저 힌트를 이용하면 현재 쿼리에만 설정할 수도 있다.
+
+```shell
+mysql> SELECT /*+ SET_VAR(optimizer_switch='condition_fanout_filter=off') */ 
+         * 
+       FROM employees
+       LIMIT 1;
++--------+------------+------------+-----------+--------+------------+
+| emp_no | birth_date | first_name | last_name | gender | hire_date  |
++--------+------------+------------+-----------+--------+------------+
+|  10001 | 1953-09-02 | Georgi     | Facello   | M      | 1986-06-26 |
++--------+------------+------------+-----------+--------+------------+
+1 row in set (0.00 sec)
+```
+
+#### 3-1-1. MRR과 배치 키 엑세스(mmr & batched_key_access)
+
+- MRR(Multi-Range Read)는 DS-MRR(Disk Sweep Multi-Range Read)이라고도 부른다. 
+- MySQL 서버에서 지금까지 지원하던 조인 방식은 드라이빙 테이블의 레코드를 한 건 읽어서 드리븐 테이블의 일치하는 레코드를 찾아서 조인을 수행하는 것이었다.
+  - 이를 `네스티드 루프 조인  Nested Loop Join`이라고 한다.
+  - MySQL 서버 내부 구조상 조인 처리는 MySQL 엔진이 처리하지만, 실제 레코드를 검색하고 읽는 부분은 스토리지 엔진이 담당한다.
+  - 이때 드라이빙 테이블의 레코드 건별로 드리븐 테이블의 레코드를 찾으면 레코드를 찾고 읽는 스토리지 엔진에서는 아무런 최적화를 수행할 수가 없다.
+- 이 같은 단점을 보완하기 위해 MySQL 서버는 조인 대상 테이블 중 하나로부터 레코드를 읽어서 조인 버퍼에 버퍼링한다. 
+  - 드라이빙 테이블의 레코드를 읽어서 드리븐 테이블과의 조인을 즉시 실행하지 않고 조인 대상을 버퍼링하는 것이다.
+  - 조인 버퍼에 레코드가 가득 차면 MySQL 엔진은 버퍼링된 레코드를 스토리지 엔진으로 한 번에 요청한다. 
+  - 이를 통해 스토리지 엔진은 읽어야할 레코드들을 데이터 페이지에 정렬된 순서로 접근해서 디스크의 데이터 페이지 읽기를 최소화할 수 있는 것이다.
+  - 물론 데이터 페이지가 메모리(InnoDB 버퍼 풀)에 있다고 하더라도 버퍼 풀의 접근을 최소화할 수 있는 것이다.
+- MMR을 응용해서 실행되는 조인 방식인 BKA 조인 최적화 방식도 있는데 기본값이 `off`이다. 
+  - 그 이유는 BKA 조인을 사용하면 부가적인 정렬 작업이 필요해지기 때문에 오히려 성능이 안 좋아질 수 있다는 단점이 존재하기 때문이다.
+  - 하지만 도움이 되는 경우도 있다.
+
+#### 3-1-2. 블록 네스티드 루프 조인(block_nested_loop)
+
+> #### 주의 
+> **MySQL 8.0.18 버전부터 해시 조인 알고리즘이 도입되었고, MySQL 8.0.20 버전부터는 블록 네스티드 조인은 더이상 사용되지 않고 해시 조인 알고리즘을 대체된다. 
+> 따라서 Extra 칼럼에 "Using Join Buffer(block nested loop)" 메시지가 표시되지 않을 수 있다.**
+
+- MySQL에서 사용되는 대부분의 조인이 네스티드 루프 조인이다. 
+  - 조인의 연결 조건이 되는 칼럼에 모두 인덱스가 있는 경우 사용되는 조인 방식이다.
 - 마치 중첩된 반복 명령을 사용하는 것처럼 작동한다고 하여 네스티드 루프 조인이라고 부른다.
 
-```sql
+```shell
 mysql> EXPLAIN
-    -> SELECT *
-    -> FROM employees e
-    -> INNER JOIN salaries s ON s.emp_no = e.emp_no
-    -> AND s.from_date <= NOW()
-    -> AND s.to_date >= NOW()
-    -> WHERE e.first_name = 'Amor';
-+----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
-| id | select_type | table | partitions | type | possible_keys        | key          | key_len | ref                | rows | filtered | Extra       |
-+----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
-|  1 | SIMPLE      | e     | NULL       | ref  | PRIMARY,ix_firstname | ix_firstname | 58      | const              |    1 |   100.00 | NULL        |
-|  1 | SIMPLE      | s     | NULL       | ref  | PRIMARY              | PRIMARY      | 4       | employees.e.emp_no |    9 |    11.11 | Using where |
-+----+-------------+-------+------------+------+----------------------+--------------+---------+--------------------+------+----------+-------------+
+       SELECT *
+       FROM employees e
+       INNER JOIN salaries s ON s.emp_no = e.emp_no
+       AND s.from_date <= NOW()
+       AND s.to_date >= NOW()
+       WHERE e.first_name = 'Amor';
++----+-------------+------+--------------+------+----------+-------------+
+| id | select_type | type | key          | rows | filtered | Extra       |
++----+-------------+------+--------------+------+----------+-------------+
+|  1 | SIMPLE      | ref  | ix_firstname |    1 |   100.00 | NULL        |
+|  1 | SIMPLE      | ref  | PRIMARY      |    9 |    11.11 | Using where |
++----+-------------+------+--------------+------+----------+-------------+
 2 rows in set, 1 warning (0.00 sec)
 ```
 
 - 네스티드 루프 조인과 블록 네스티드 루프 조인(Block Nested Loop Join)의 가장 큰 차이는 조인 버퍼가 사용되는지 여부와 조인에서 드라이빙 테이블과 드리븐 테이블이 어떤 순서로 조인되느냐이다.
-- 조인 알고리즘에서 Block이라는 단어가 사용되면 조인용으로 별도의 버퍼가 사용됐다는 것을 의미하는데, 조인 쿼리의 실행 계획에서 Extra 칼럼에 "Using Join buffer"라는 문구가 표시되면 그 실행 계획은 조인 버퍼를 사용한다는 것을 의미한다.
+- 조인 알고리즘에서 "Block"이라는 단어가 사용되면 조인용으로 별도의 버퍼가 사용됐다는 것을 의미하는데, 조인 쿼리의 실행 계획에서 Extra 칼럼에 "Using Join buffer"라는 문구가 표시되면 그 실행 계획은 조인 버퍼를 사용한다는 것을 의미한다.
 - 조인은 드라이빙 테이블에서 일치하는 레코드의 건수만큼 드리븐 테이블을 검색하면서 처리된다. 드라이빙 테이블은 한 번에 쭉 읽지만, 드리븐 테이블은 여러 번 읽는다.
-- 어떤 방식으로든 드리븐 테이블의 풀 테이블 스캔이나 인덱스 풀 스캔을 피할 수 없다면 옵티마이저는 드라이빙 테이블에서 읽은 레코드를 메모리에 캐시한 후 드리븐 테이블과 이 메모리 캐시를 조인하는 형태로 처리한다. 이 때 사용되는 메모리의 캐시를 조인 버퍼(Join Buffer)라고 한다.
-- 조인 버퍼는 `join_buffer_size`라는 시스템 변수로 크리를 제한할 수 있으며 조인이 완료되면 조인 버퍼는 바로 해제된다.
+  - ex) 드라이빙 테이블에 일치하는 레코드 1,000건. 드리븐 테이블의 조인 조건이 인덱스를 이용할 수 없었다면 드리븐 테이블에서 연결되는 레코드를 찾기 위해 1,000번의 풀 테이블 스캔을 해야 한다.
+  - 그래서 드리븐 테이블을 검색할 때 인덱스를 사용할 수 없는 쿼리는 상당히 느려지며, 옵티마이저는 최대한 드리븐 테이블의 검색이 인덱스를 사용할 수 있게 실행 계획을 수립한다.
+- 그런데 어떤 방식으로든 드리븐 테이블의 풀 테이블 스캔이나 인덱스 풀 스캔을 피할 수 없다면 옵티마이저는 드라이빙 테이블에서 읽은 레코드를 메모리에 캐시한 후 드리븐 테이블과 이 메모리 캐시를 조인하는 형태로 처리한다. 
+  - 이 때 사용되는 메모리의 캐시를 `조인 버퍼 Join Buffer`라고 한다.
+  - 조인 버퍼는 `join_buffer_size`라는 시스템 변수로 크기를 제한할 수 있으며 조인이 완료되면 조인 버퍼는 바로 해제된다.
+- 아래 조인의 예제는 각 테이블에 대한 조건 `WHERE`는 있지만, 두 테이블 간의 연결 고리 역할을 하는 조인 조건은 없다.
+  - 따라서 `dept_emp` 테이블에서 `from_date>'2000-01-01'`인 레코드(10,616건)와 `employees` 테이블에서 `emp_no<109004` 조건을 만족하는 레코드(99,003건)는 카테시안 조인을 수행한다.
 
 ```sql
 mysql> EXPLAIN
-    -> SELECT *
-    -> FROM dept_emp de, employees e
-    -> WHERE de.from_date > '1995-01-01' AND e.emp_no < 109004;
-+----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
-| id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref  | rows   | filtered | Extra                                      |
-+----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
-|  1 | SIMPLE      | e     | NULL       | range | PRIMARY       | PRIMARY | 4       | NULL | 150070 |   100.00 | Using where                                |
-|  1 | SIMPLE      | de    | NULL       | ALL   | ix_fromdate   | NULL    | NULL    | NULL | 331143 |    50.00 | Using where; Using join buffer (hash join) |
-+----+-------------+-------+------------+-------+---------------+---------+---------+------+--------+----------+--------------------------------------------+
+       SELECT *
+       FROM dept_emp de, employees e
+       WHERE de.from_date > '1995-01-01' AND e.emp_no < 109004;
++----+-------------+-------+-------+---------+--------+----------+--------------------------------------------+
+| id | select_type | table | type  | key     | rows   | filtered | Extra                                      |
++----+-------------+-------+-------+---------+--------+----------+--------------------------------------------+
+|  1 | SIMPLE      | e     | range | PRIMARY | 150070 |   100.00 | Using where                                |
+|  1 | SIMPLE      | de    | ALL   | NULL    | 331143 |    50.00 | Using where; Using join buffer (hash join) |
++----+-------------+-------+-------+---------+--------+----------+--------------------------------------------+
 2 rows in set, 1 warning (0.01 sec)
 ```
 
-- (위 쿼리를 살펴보면 "Using Join Buffer(block nested loop)" 메시지가 출력되지 않고 "Using Join Buffer(hash join)"으로 출력되는 것을 확인할 수 있다.)
-- 위 쿼리는 아래의 과정을 거쳐 실행된다. (Extra 칼럼을 보면 Using join buffer 라는 문구를 볼 수 있음)
-  1. dept_emp 테이블의 ix_fromdate 인덱스를 이용해(from_date > '1995-01-01') 조건을 만족하는 레코드를 검색한다.
-  2. 조인에 필요한 나머지 칼럼을 모두 dept_emp 테이블로부터 읽어서 조인 버퍼에 저장한다.
-  3. employees 테이블의 프라이머리 키를 이용해 (emp_no < 109004) 조건을 만족하는 레코드를 검색한다.
-  4. 3번에서 검색된 결과(employees)에 2번의 캐시된 조인 버퍼의 레코드(dept_emp)를 결합해서 반환한다.
+- 실행 계획을 살펴보면 "Using Join Buffer(block nested loop)" 메시지가 출력되지 않고 "Using Join Buffer(hash join)"으로 출력되는 것을 확인할 수 있다.
+  - 주의에서 보여준 것처럼 해시 조인 알고리즘이 도입됐기 때문이다. 8.0.20 버전 이전이라면 "Using join buffer (block nested loop)"라는 문구가 출력됐을 것이다. 
+- 위 쿼리는 아래의 과정을 거쳐 실행된다. (block nested loop join의 경우)
+  1. `dept_emp` 테이블의 `ix_fromdate` 인덱스를 이용해(`from_date > '1995-01-01'`) 조건을 만족하는 레코드를 검색한다.
+  2. 조인에 필요한 나머지 칼럼을 모두 `dept_emp` 테이블로부터 읽어서 조인 버퍼에 저장한다.
+  3. `employees` 테이블의 프라이머리 키를 이용해 (`emp_no < 109004`) 조건을 만족하는 레코드를 검색한다.
+  4. 3번에서 검색된 결과(`employees`)에 2번의 캐시된 조인 버퍼의 레코드(`dept_emp`)를 결합해서 반환한다.
 
 <img src="img/optimizer3.png">
 
-### 인덱스 컨디션 푸시다운(index_condition_pushdown)
+#### 3-1-3/ 인덱스 컨디션 푸시다운(index_condition_pushdown)
 
 - MySQL 5.6 버전부터 도입된 기능, 쿼리의 성능을 몇 배에서 몇십 배로 향상할 수 있는 중요한 기능이다.
-- 인덱스 범위 제한 조건으로 사용하지 못하더라도 인덱스에 포함된 칼럼의 조건이 있다면 모아서 스토리지 엔진으로 전달할 수 있게 핸들러 API가 개선 됐다.
-- 복합인덱스 테이블에서 인덱스를 활용하지 못하는 조건이라도 인덱스 테이블 내에서 모든 체크 조건을 처리할 수 있다면, 불필요한 디스크 I/O 읽기를 수행하지 않는다.
-- Extra 칼럼에는 "Using index condition"이라고 뜨게 된다.
-- 인덱스 컨디션 푸시다운을 사용하지 않으면 어떻게 될까? (인덱스 컨디션 푸시다운을 `off`로 둔 경우)
-  - 예를 들어 `%문자열`과 같은 조건으로 검색하면 인덱스를 사용할 수 없는 조건이기 때문에 모든 rows를 읽을 수 밖에 없다. 만약 데이터가 10만 개라면 1개의 데이터를 찾기 위해 불필요한 99,999 번의 I/O 작업이 수행된다는 말이다.
-  - Extra 칼럼에서 "Using where" 라는 메시지가 뜨게 된다.
+- 아래와 같이 설정해줄 수 있다. (기본값은 `on`이다.)
 
+```shell
+# on
+mysql> SET optimizer_switch='index_condition_pushdown=on';
+# off
+mysql> SET optimizer_switch='index_condition_pushdown=off';
+```
+
+- 먼저 비활성화해서 테스트를 진행해보자.
+
+```shell
+mysql> ALTER TABLE employees ADD INDEX ix_lastname_firstname (last_name, first_name);
+Query OK, 0 rows affected (0.67 sec)
+Records: 0  Duplicates: 0  Warnings: 0
+
+mysql> SET optimizer_switch='index_condition_pushdown=off';
+mysql> SHOW VARIABLES LIKE 'optimizer_switch' \G
+*************************** 1. row ***************************
+Variable_name: optimizer_switch
+        Value: index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,engine_condition_pushdown=on,index_condition_pushdown=on,mrr=on,mrr_cost_based=on,block_nested_loop=on,batched_key_access=off,materialization=on,semijoin=on,loosescan=on,firstmatch=on,duplicateweedout=on,subquery_materialization_cost_based=on,use_index_extensions=on,condition_fanout_filter=on,derived_merge=on,use_invisible_indexes=off,skip_scan=on,hash_join=on,subquery_to_derived=off,prefer_ordering_index=on,hypergraph_optimizer=off,derived_condition_pushdown=on
+1 row in set (0.00 sec)
+```
+
+- 이제 쿼리를 실행할 때 스토리지 엔진이 몇 건의 레코드를 읽는지를 살펴보자.
+
+```shell
+mysql> EXPLAIN 
+       SELECT * FROM employees WHERE last_name='Acton' AND first_name LIKE '%sal';
++----+-------------+-----------+------+-----------------------+---------+------+----------+-------------+
+| id | select_type | table     | type | key                   | key_len | rows | filtered | Extra       |
++----+-------------+-----------+------+-----------------------+---------+------+----------+-------------+
+|  1 | SIMPLE      | employees | ref  | ix_lastname_firstname | 66      |  189 |    11.11 | Using where |
++----+-------------+-----------+------+-----------------------+---------+------+----------+-------------+
+```
+
+- "Using where"라고 표시된 것을 확인할 수 있다.
+  - "Using where"는 InnoDB 스토리지 엔진이 읽어서 반환해준 레코드가 인덱스를 사용할 수 없는 `WHERE` 조건에 일치하는지 검사하는 과정을 의미한다.
+  - 이 쿼리에서는 `first_name LIKE '%sal'`이 검사 과정에서 사용된 조건이다.
+
+- 아래 그림은 `last_name='Anton'` 조건으로 인덱스 레인지 스캔을 하고 테이블의 레코드를 읽은 후, `first_name LIKE '%sal'` 조건에 부합하는지 여부를 비교하는 과정을 표현한 것이다.
+  - 성능과 큰 관계가 없어 보일 수 있지만, 사실 이 과정은 매우 중요한 의미를 가진다. 
+  - 실제 테이블을 읽어서 3건의 레코드를 가져왔지만 그중 단 1건만 `first_name LIKE '%sal'` 조건에 일치했다.
+  - 그런데 만약 `last_name` 조건에 일치하는 레코드가 10만 건이고, 그중에서 `first_name` 조건에 일치하는 경우가 단 1건만 있다면 어떨까? => 99,999건의 레코드 읽기가 불필요한 작업이 된다.
+
+<img src="img/optimizer06.jpg">
+
+- MySQL 5.6 버전부터는 이렇게 인덱스를 범위 제한 조건으로 사용하지 못한다고 하더라도 인덱스에 포함된 조건이 있다면 모두 모아서 스토리지 엔진으로 전달할 수 있게 핸들러 API가 개선됐다.
+  - 따라서 아래와 같이 인덱스를 이용해 최대한 필터링까지 완료해서 꼭 필요한 레코드 1건에 대해서만 테이블 읽기를 수행할 것이다.
+  - 실행계획을 확인해보면 "Using where"이 아니라 "Using index condition"이라는 문구가 출력되는 것을 확인할 수 있다.
+
+```shell
+SET optimizer_switch='index_condition_pushdown=on';
+
+mysql> EXPLAIN 
+       SELECT * FROM employees WHERE last_name='Acton' AND first_name LIKE '%sal';
++----+-------------+-----------+------+-----------------------+---------+------+----------+-----------------------+
+| id | select_type | table     | type | key                   | key_len | rows | filtered | Extra                 |
++----+-------------+-----------+------+-----------------------+---------+------+----------+-----------------------+
+|  1 | SIMPLE      | employees | ref  | ix_lastname_firstname | 66      |  189 |    11.11 | Using index condition |
++----+-------------+-----------+------+-----------------------+---------+------+----------+-----------------------+
+```
+  
 ### 인덱스 확장(use_index_extensions)
 
 - InnoDB 스토리지 엔진을 사용하는 테이블에서 세컨더리 인덱스에 자동으로 추가된 프라이머리 키를 활용할 수 있게 할지를 결정하는 옵션
