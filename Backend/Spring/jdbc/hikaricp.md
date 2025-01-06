@@ -147,8 +147,122 @@ ERROR 1040 (HY000): Too many connections
 - `hikaricp.connections.max`: 설정된 최대 Connection Pool 사이즈
 - `hikaricp.connections.min`: 설정된 최소 유휴 Connection Pool 사이즈
 
+## HikariCP는 왜 빠른가?
+
+- 성능과 Connection Pool을 생각할 때, 많은 사람들은 풀 자체가 성능 공식에서 가장 중요한 부분이라고 착각할 수도 있다.
+- 하지만 반드시 그렇다고 말할 수는 없는게, `getConnection()` 호출의 횟수는 다른 JDBC 작업에 비해 적은 편이다.
+  - 성능 향상의 상당 부분은 `Conneciton`, `Statement` 등을 감싸는 `위임 객체 delegates`의 최적화에서 이뤄진다.
+
+### 바이트코드
+
+- HikariCP는 지금처럼 빨라지기 위해 바이트코드 수준의 엔지니어링을 넘어섰다고 한다.
+- `Just-In-Time Compiler`가 개발자를 도울 수 있도록 모든 트릭을 동원했다.
+- 컴파일러의 바이트코드 출력과 JIT의 어셈블리 출력까지 연구해 주요 루틴을 JIT의 인라인 임계값 이하로 제한한다.
+- 상속 계층 구조를 단순화하고, 멤버 볌수를 섀도잉하며, 형 변환을 제거했다.
+
+### micro 최적화
+
+- 거의 측정되지 않을 정도의 미세한 최적화가 많이 포함되어 있지만, 이러한 최적화가 결합되면 전체적인 성능이 크게 향상된다.
+
+#### ArrayList
+
+- 가장 중요한 최적화 중 하나는 `ProxyConnection`에 의해 열린 `Statement` 인스턴스를 추적하기 위해 사용되던 `ArrayList<Statement>`를 제거한 것이다.
+  - 기존에는 이 컬렉션에서 해야할 작업이 많았다.
+  - `Statement`가 닫힐 때 해당 `Statement` 제거해야 한다.
+  - `Connection`이 닫히면 반복을 통해 열려 있는 모든 `Statement`를 닫야하고, 컬렉션을 비워야 했다.
+- `ArrayList`의 `get(int index)`는 호출될 때마다 범위 검사를 하는데 이는 불필요한 오버헤드다.
+- `remove(Object)`는 컬렉션의 head부터 tail까지 스캔을 수행해야 하는데, 일반적인 JDBC 프로그래밍의 일반적인 패턴은 사용 후 `Statement`를 즉시 닫거나, 열린 순서의 역순으로 닫는 경우가 많다.
+  - 이런 경우 뒤에서부터 하는 스캔이 유리하다.
+- 따라서 범위 검사를 제거하고, 스캔을 뒤에서부터 하는 `FastList`라는 커스텀 클래스를 만들어 사용하고 있다고 한다.
+
+#### ConcurrentBag
+
+- `잠금 없는 컬렉션 lock-free collection`이다.
+  - C# .NET의 `ConcurrentBag` 클래스에서 착안했지만, 내부 구현은 상당히 다르다고 한다.
+- `ConcurrentBag`은 아래와 같은 기능을 제공한다.
+  - 잠금 없는 설계
+  - ThreadLocal 캐싱
+  - Queue-stealing
+  - Direct hand-off 최적화
+- 이 기능을 통해 높은 수준의 동시성과 극도로 낮은 대기 시간, `false-sharing` 발생을 최소화한다.
+
+> #### 참고: False sharing 
+> - 분산된 일관성 캐시를 사용하는 시스템에서 가장 작은 리소스 블록 크기 단위로 캐시 메커니즘이 데이터를 관리할 때 발생할 수 있는 성능 저하 패턴
+> - 시스템의 한 참여자가 다른 참여자에 의해 변경되지 않은 데이터를 주기적으로 접근하려고 할 때, 해당 데이터가 변경되고 있는 데이터와 동일한 캐시 블록을 공유하고 있다면, 캐싱 프로토콜은 논리적으로는 불필요함에도 불구하고 첫 번째 참여자가 전체 캐시 블록을 다시 로드하도록 강제할 수 있다.
+> - 캐싱 시스템은 이 블록 내에서 이루어지는 활동에 대해 알지 못하며, 실제로 리소스를 공유 접근할 때 발생하는 오버헤드와 동일한 캐싱 시스템의 오버헤드를 첫 번째 참여자가 감당하도록 만든다.
+
+#### invokevirtual vs ivokestatic
+
+- HikariCP는 `Connection`, `Statement`, `ResultSet` 인스턴스를 위한 프록시를 생성하기 위해 처음에는 `싱글턴 팩토리 singleton factory`를 사용했다.
+  - `ProxyConnection`의 경우, 정적 필드에 저장되어 있었다.(`PROXY_FACTORY`)
+
+```java
+public final PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
+    return PROXY_FACTORY.getProxyPreparedStatement(this, delegate.prepareStatement(sql, columnNames));
+}
+```
+
+- 기존의 싱글톤 팩토리를 사용하면 아래와 같은 바이트코드가 만들어진다.
+
+```shell
+public final java.sql.PreparedStatement prepareStatement(java.lang.String, java.lang.String[]) throws java.sql.SQLException;
+  flags: ACC_PRIVATE, ACC_FINAL
+  Code:
+    stack=5, locals=3, args_size=3
+       0: getstatic     #59                 // Field PROXY_FACTORY:Lcom/zaxxer/hikari/proxy/ProxyFactory;
+       3: aload_0
+       4: aload_0
+       5: getfield      #3                  // Field delegate:Ljava/sql/Connection;
+       8: aload_1
+       9: aload_2
+      10: invokeinterface #74,  3           // InterfaceMethod java/sql/Connection.prepareStatement:(Ljava/lang/String;[Ljava/lang/String;)Ljava/sql/PreparedStatement;
+      15: invokevirtual #69                 // Method com/zaxxer/hikari/proxy/ProxyFactory.getProxyPreparedStatement:(Lcom/zaxxer/hikari/proxy/ConnectionProxy;Ljava/sql/PreparedStatement;)Ljava/sql/PreparedStatement;
+      18: return
+```
+
+- 먼저 정적 필드 `PROXY_FACTORY`의 값을 가져오기 위해 `getstatic` 호출이 있으며, 마지막으로 `ProxyFactory` 인스턴스에서 `getProxyPreparedStatement()`를 호출하기 위한 `invokevirtual` 호출이 이뤄지는 것을 볼 수 있다.
+- HikariCP는 Javassist가 생성한 싱글턴 팩토리를 제거하고, Javassist가 메소드 본문을 생성하는 정적 메소드를 가진 final 클래스로 대체했다.
+
+> #### Javassist
+> - Java 애플리케이션에서 바이트코드 조작(Bytecode Manipulation)을 쉽게 수행할 수 있도록 도와주는 라이브러리
+
+```java
+public final PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
+    return ProxyFactory.getProxyPreparedStatement(this, delegate.prepareStatement(sql, columnNames));
+}
+```
+
+- 이제 바이트코드는 아래와 같이 만들어진다.
+
+```shell
+private final java.sql.PreparedStatement prepareStatement(java.lang.String, java.lang.String[]) throws java.sql.SQLException;
+  flags: ACC_PRIVATE, ACC_FINAL
+  Code:
+    stack=4, locals=3, args_size=3
+       0: aload_0
+       1: aload_0
+       2: getfield      #3                  // Field delegate:Ljava/sql/Connection;
+       5: aload_1
+       6: aload_2
+       7: invokeinterface #72,  3           // InterfaceMethod java/sql/Connection.prepareStatement:(Ljava/lang/String;[Ljava/lang/String;)Ljava/sql/PreparedStatement;
+      12: invokestatic  #67                 // Method com/zaxxer/hikari/proxy/ProxyFactory.getProxyPreparedStatement:(Lcom/zaxxer/hikari/proxy/ConnectionProxy;Ljava/sql/PreparedStatement;)Ljava/sql/PreparedStatement;
+      15: areturn
+```
+
+1. `getstatic` 호출이 사라졌고,
+2. `invokevirtual` 호출이 `invokestatic` 호출로 대체되어 JVM에서 더 쉽게 최적화할 수 있게 되었으며,
+3. 스택 크기가 5개에서 4개로 줄었다. 이는 `invokevirtual` 호출의 경우, 스택에 `ProxyFactory` 인스턴스(`this`)가 암묵적으로 전달되기 때문이다. 또한 `getProxyPreparedStatement()`가 호출될 때 해당 값이 스택에서 추가적으로 `pop`되는 동작이 발생한다. 
+
+- 결론적으로 정적 필드 접근, 스택의 push와 pop 동작을 제거했으며, `호출 지점 callsite`이 변경되지 않음을 보장하여 JIT 컴파일러가 호출을 더 쉽게 최적화할 수 있게 만들었다.
+
+#### 기타
+
+- 그 외에도 코드의 모든 중요한 경로에서 명령어 수를 줄여, 각 메소드가 OS 스케줄러의 실행 퀀텀 내에 맞도록 최적화하여 캐시 라인 무효화로 인한 성능 저하를 피할 수 있었다고 한다.
+
+
 # 참고자료
 
 - [HikariCP Dead lock에서 벗어나기 (실전편)](https://techblog.woowahan.com/2663/)
 - [[Spring] DB커넥션풀과 Hikari CP 알아보기](https://velog.io/@miot2j/Spring-DB%EC%BB%A4%EB%84%A5%EC%85%98%ED%92%80%EA%B3%BC-Hikari-CP-%EC%95%8C%EC%95%84%EB%B3%B4%EA%B8%B0)
 - [JDBC Connection 에 대한 이해, HikariCP 설정 팁](https://jiwondev.tistory.com/291)
+- [Down the Rabbit Hole](https://github.com/brettwooldridge/HikariCP/wiki/Down-the-Rabbit-Hole)
