@@ -65,6 +65,118 @@ public class MyMessageSender implements MessageSender {
 - @AutoConfigureTestDatabase라는 어노테이션?
 - @TestContainers를 통해 각각의 환경을 구성해 병렬 테스트를 실행해볼 수 있을 것이다.
 
+## TestContainers 문제
+
+- connection refuse가 발생
+
+### 생명주기 관리 따로 해주는 방법!
+
+```java
+public class MySQLTestContainers {
+
+  static String MYSQL_IMAGE = "mysql:8.0.33";
+  static MySQLContainer MYSQL_CONTAINER;
+
+  static {
+    MYSQL_CONTAINER = new MySQLContainer(MYSQL_IMAGE);
+    MYSQL_CONTAINER.start();
+    System.setProperty("spring.datasource.url", MYSQL_CONTAINER.getJdbcUrl());
+    System.setProperty("spring.datasource.username", MYSQL_CONTAINER.getUsername());
+    System.setProperty("spring.datasource.password", MYSQL_CONTAINER.getPassword());
+  }
+
+  @PreDestroy
+  void stop() {
+    MYSQL_CONTAINER.stop();
+  }
+
+  public String getJdbcUrl() {
+    return MYSQL_CONTAINER.getJdbcUrl();
+  }
+
+  public String getUsername() {
+    return MYSQL_CONTAINER.getUsername();
+  }
+
+  public String getPassword() {
+    return MYSQL_CONTAINER.getPassword();
+  }
+}
+```
+
+```java
+public class RedisTestContainers {
+
+  private static String REDIS_VERSION = "7.2.5";
+
+  protected static RedisContainer REDIS_CONTAINER;
+
+  static {
+    REDIS_CONTAINER =
+        new RedisContainer(RedisContainer.DEFAULT_IMAGE_NAME.withTag(REDIS_VERSION))
+            .withExposedPorts(6379);
+    REDIS_CONTAINER.start();
+    System.setProperty("spring.data.redis.host", REDIS_CONTAINER.getRedisHost());
+    System.setProperty("spring.data.redis.port", Integer.toString(REDIS_CONTAINER.getRedisPort()));
+  }
+
+  @PreDestroy
+  void stop() {
+    REDIS_CONTAINER.stop();
+  }
+
+  public String getHost() {
+    return REDIS_CONTAINER.getRedisHost();
+  }
+
+  public int getPort() {
+    return REDIS_CONTAINER.getRedisPort();
+  }
+}
+```
+
+```java
+@Configuration
+public class TestDataSourceConfig {
+
+  @Bean(name = "mysqlTestContainers")
+  public MySQLTestContainers mysqlTestContainers() {
+    return new MySQLTestContainers();
+  }
+
+  @Bean
+  @DependsOn("mySQLTestContainers")
+  public DataSource dataSource(MySQLTestContainers containers) {
+    HikariDataSource dataSource = new HikariDataSource();
+    dataSource.setDriverClassName("com.mysql.jdbc.Driver");
+    dataSource.setJdbcUrl(containers.getJdbcUrl());
+    dataSource.setUsername(containers.getUsername());
+    dataSource.setPassword(containers.getPassword());
+    return dataSource;
+  }
+
+  @Bean(name = "redisTestContainers")
+  public RedisTestContainers redisTestContainers() {
+    return new RedisTestContainers();
+  }
+
+  @Bean(name = "redisConnectionFactory")
+  @DependsOn("redisTestContainers")
+  public RedisConnectionFactory redisConnectionFactory(RedisTestContainers redisTestContainers) {
+    return new LettuceConnectionFactory(
+        redisTestContainers.getHost(), redisTestContainers.getPort());
+  }
+
+  @Bean
+  @DependsOn("redisConnectionFactory")
+  public RedisTemplate<?, ?> redisTemplate(final RedisConnectionFactory redisConnectionFactory) {
+    RedisTemplate<byte[], byte[]> template = new RedisTemplate<>();
+    template.setConnectionFactory(redisConnectionFactory);
+    return template;
+  }
+}
+```
+
 ## 테스트 컨테이너 재사용??
 
 ```shell
@@ -78,3 +190,5 @@ testcontainers.reuse.enable=true
 - [테스트 코드에서 @MockBean 사용의 문제점과 해결법](https://velog.io/@glencode/%ED%85%8C%EC%8A%A4%ED%8A%B8-%EC%BD%94%EB%93%9C%EC%97%90%EC%84%9C-MockBean-%EC%82%AC%EC%9A%A9%EC%9D%98-%EB%AC%B8%EC%A0%9C%EC%A0%90%EA%B3%BC-%ED%95%B4%EA%B2%B0%EB%B2%95)
 - [병렬 테스트 시 DB처리](https://www.inflearn.com/community/questions/1321624/%EB%B3%91%EB%A0%AC-%ED%85%8C%EC%8A%A4%ED%8A%B8-%EC%8B%9C-db%EC%B2%98%EB%A6%AC?srsltid=AfmBOorYSWEX6Dou0cfa0uPItupW1juKlNF-Hkw-Lg9e5Cvt4abuGqur)
 - [TestContainer 로 멱등성있는 integration test 환경 구축하기](https://medium.com/riiid-teamblog-kr/testcontainer-%EB%A1%9C-%EB%A9%B1%EB%93%B1%EC%84%B1%EC%9E%88%EB%8A%94-integration-test-%ED%99%98%EA%B2%BD-%EA%B5%AC%EC%B6%95%ED%95%98%EA%B8%B0-4a6287551a31)
+- [Testcontainers에 의한 docker container 생성 폭발을 막아라](https://flex.team/blog/2024/07/29/tech-testcontainers/)
+- [멀티모듈 환경에서 Testcontainers로 일관성있는 테스트 환경 만들기](https://binaryflavor.com/%EB%A9%80%ED%8B%B0%EB%AA%A8%EB%93%88-%ED%99%98%EA%B2%BD%EC%97%90%EC%84%9C-testcontainers%EB%A1%9C-%EC%9D%BC%EA%B4%80%EC%84%B1%EC%9E%88%EB%8A%94-%ED%85%8C%EC%8A%A4%ED%8A%B8-%ED%99%98%EA%B2%BD-%EB%A7%8C%EB%93%A4%EA%B8%B0/)
