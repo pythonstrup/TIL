@@ -177,10 +177,77 @@ public class TestDataSourceConfig {
 }
 ```
 
-## 테스트 컨테이너 재사용??
+## Gradle에서 병렬 처리?
 
-```shell
-testcontainers.reuse.enable=true
+- 아래 파일을 프로젝트 root에 추가해준다.
+- `gradle.properties`
+
+```properties
+org.gradle.parallel=true
+```
+
+### 각 테스트 유형별로 병렬 실행하기
+
+- Unit 테스트는 전체 병렬로 실행하되, 상태가 변경될 수 있는 테스트에 대해서는 아래와 같이 직렬로 실행하기 위해 `@Execution(value = ExecutionMode.SAME_THREAD)`을 붙인다.
+- 직렬로 실행해야 하는 Test 환경에 대한 코드
+
+```java
+@Tag("controllerTest")
+@Execution(value = ExecutionMode.SAME_THREAD)
+public abstract class ControllerTest {}
+```
+
+```java
+@Tag("e2eTest")
+@Execution(value = ExecutionMode.SAME_THREAD)
+public abstract class E2eTestSupport {}
+```
+
+```java
+@Tag("integrationTest")
+@Execution(value = ExecutionMode.SAME_THREAD)
+public abstract class TestIntegrationSupport {}
+```
+
+- 아래 코드를 통해 각 테스트가 병렬로 처리될 수 있도록 했다.
+- `build.gradle.kts`
+
+```kotlin
+tasks.register<Test>("integrationTest") {
+    description = "Run all integration tests"
+    group = "verification"
+    useJUnitPlatform {
+        includeTags("integrationTest") // 'integration' 태그 포함
+    }
+    maxParallelForks = 1
+}
+
+tasks.register<Test>("e2eTest") {
+    description = "Run all e2e tests"
+    group = "verification"
+    useJUnitPlatform {
+        includeTags("e2eTest") // 'e2e' 태그 포함
+    }
+    maxParallelForks = 1
+}
+
+tasks.register<Test>("controllerTest") {
+    description = "Run all controller tests"
+    group = "verification"
+    useJUnitPlatform {
+        includeTags("controllerTest") // 'controller' 태그 포함
+    }
+    maxParallelForks = 1
+}
+
+tasks.register<Test>("unitTest") {
+    description = "Run all unit tests"
+    group = "verification"
+    useJUnitPlatform {
+        excludeTags("integration", "e2e", "controller") // 태그가 있는 테스트 제외
+    }
+    maxParallelForks = 3 // 병렬 실행
+}
 ```
 
 # 참고자료
