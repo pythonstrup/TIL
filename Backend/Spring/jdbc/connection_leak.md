@@ -69,10 +69,14 @@ $ jmap -dump:format=b,file=/tmp/heapdump.hprof 1
 $ brew install --cask memoryanalyzer
 ```
 
-- 생성한 Heap Dump 파일을 통해 분석을 실행해보자.
+> #### > 참고
+> - 분석을 실행하기 전에 먼저 `Keep unreachable objects` 설정을 켜주자!
+> <img src="img/leak04.png">
+
+- 이제 생성한 Heap Dump 파일을 통해 분석을 실행해보자.
 - (참고로 아래의 예시는 파드가 실행된지 얼마 안 됐기 때문에 Leak이 적은 상태라고 보면 된다.)
 
-<img src="img/leak04.png">
+<img src="img/leak05.png">
 
 - 그리고 아래와 같은 메시지를 확인할 수 있었다.
 
@@ -209,7 +213,7 @@ public class AbandonedConnectionCleanupThread implements Runnable {
 - 애플리케이션에서 메모리를 과도하게 사용하고 있다는 신호일 수 있다.
 - 이때는 객체의 개수, 메모리 점유율 상위 객체, GC에 의해 해제되지 않는 오래된 객체를 확인해야 한다.
 
-<img src="img/leak05.png">
+<img src="img/leak06.png">
 
 
 # 참고자료
