@@ -250,6 +250,109 @@ tasks.register<Test>("unitTest") {
 }
 ```
 
+## 진짜 병렬 테스트
+
+- 위의 방식은 100% 병렬 테스트라고 할 수 없다.
+- 통합 테스트, e2e 테스트, 컨트롤러 테스트 메소드 각각이 병렬로 실행될 수 있는 환경을 구축해야 한다.
+- 병렬로 실행될 수 있는 통합 테스트 환경을 만들려면, 테스트가 병렬로 돌아간다는 것을 감안하고 테스트를 만들어야 한다.
+  - DB Unique 제약을 피하기 위해 랜덤 값을 적절히 사용
+  - 각각의 결과값을 조회할 때, 잘못된 값을 조회하지 않도록 유도
+- 하드 코딩이 들어가 있다면, 그 코드들이 병렬 테스트의 발목을 붙잡는다..
+
+#### TestContainers
+
+- InMemory DB를 쓰면 모든 모듈이 DB를 나눠 쓰기 때문에 TestContainers로 분리해주는 것이 필요하다.
+- 아래는 MySQL과 Redis의 TestContainers를 설정하는 방법이다.
+
+```java
+import com.redis.testcontainers.RedisStackContainer;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.List;
+import java.util.Map;
+import lombok.EqualsAndHashCode;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.test.context.ContextConfigurationAttributes;
+import org.springframework.test.context.ContextCustomizer;
+import org.springframework.test.context.ContextCustomizerFactory;
+import org.springframework.test.context.MergedContextConfiguration;
+import org.springframework.test.context.TestContextAnnotationUtils;
+import org.testcontainers.containers.MySQLContainer;
+
+@Configuration
+public class EnableTestContainerContextCustomizerFactory implements ContextCustomizerFactory {
+
+  @Target(ElementType.TYPE)
+  @Retention(RetentionPolicy.RUNTIME)
+  @Documented
+  @Inherited
+  public @interface EnabledTestContainer {}
+
+  @Override
+  public ContextCustomizer createContextCustomizer(
+      final Class<?> testClass, final List<ContextConfigurationAttributes> configAttributes) {
+    if (!(TestContextAnnotationUtils.hasAnnotation(testClass, EnabledTestContainer.class))) {
+      return null;
+    }
+    return new RedisTestContainerContextCustomizer();
+  }
+
+  @EqualsAndHashCode
+  private static class RedisTestContainerContextCustomizer implements ContextCustomizer {
+
+    private static String MYSQL_IMAGE = "mysql:8.0.33";
+    private static String VERSION = "7.2.5";
+
+    @Override
+    public void customizeContext(
+        final ConfigurableApplicationContext context,
+        final MergedContextConfiguration mergedConfig) {
+      MySQLContainer mysqlContainer = new MySQLContainer(MYSQL_IMAGE);
+      mysqlContainer.start();
+
+      RedisStackContainer redisContainer =
+          new RedisStackContainer(RedisStackContainer.DEFAULT_IMAGE_NAME.withTag(VERSION));
+      redisContainer.start();
+
+      var properties =
+          Map.<String, Object>of(
+              "spring.datasource.url", mysqlContainer.getJdbcUrl(),
+              "spring.datasource.username", mysqlContainer.getUsername(),
+              "spring.datasource.password", mysqlContainer.getPassword(),
+              "spring.data.redis.host", redisContainer.getRedisHost(),
+              "spring.data.redis.port", redisContainer.getRedisPort(),
+              // Prevent any in memory db from replacing the data source
+              // See @AutoConfigureTestDatabase
+              "spring.test.database.replace", "NONE");
+
+      var propertySource = new MapPropertySource("TestContainers Properties", properties);
+      context.getEnvironment().getPropertySources().addFirst(propertySource);
+    }
+  }
+}
+```
+
+- 통합 테스트 클래스 위에 `@EnabledTestContainer` 어노테이션을 살포시 얹어주면 된다.
+
+```java
+@EnabledTestContainer
+class MyTest extends IntegrationTest {...}
+```
+
+### 에러..
+
+- 하나의 모듈을 병렬 테스트로 돌리니 갑자기 Context Load 에러가 발생하기 시작한다.
+
+```shell
+java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+```
+
 # 참고자료
 
 - [Parallel Test Execution](https://docs.spring.io/spring-framework/reference/testing/testcontext-framework/parallel-test-execution.html)
