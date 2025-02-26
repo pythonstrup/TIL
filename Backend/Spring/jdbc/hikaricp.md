@@ -259,6 +259,10 @@ private final java.sql.PreparedStatement prepareStatement(java.lang.String, java
 
 - 그 외에도 코드의 모든 중요한 경로에서 명령어 수를 줄여, 각 메소드가 OS 스케줄러의 실행 퀀텀 내에 맞도록 최적화하여 캐시 라인 무효화로 인한 성능 저하를 피할 수 있었다고 한다.
 
+## MySQL의 wait_timeout & HikariCP의 maxLifetime
+
+- [HikariCP의 커넥션 maxLifetime과 MySQL wait timeout간의 관계 알아보기!](https://seongonion.tistory.com/157)
+- [HikariCP와 커넥션 누수(Connection Leak) 관련 트러블슈팅](https://do-study.tistory.com/97)
 
 # 참고자료
 

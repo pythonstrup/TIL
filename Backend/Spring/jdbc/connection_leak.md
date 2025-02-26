@@ -69,12 +69,7 @@ $ jmap -dump:format=b,file=/tmp/heapdump.hprof 1
 $ brew install --cask memoryanalyzer
 ```
 
-> #### > 참고
-> - 분석을 실행하기 전에 먼저 `Keep unreachable objects` 설정을 켜주자!
-> <img src="img/leak04.png">
-
 - 이제 생성한 Heap Dump 파일을 통해 분석을 실행해보자.
-- (참고로 아래의 예시는 파드가 실행된지 얼마 안 됐기 때문에 Leak이 적은 상태라고 보면 된다.)
 
 <img src="img/leak05.png">
 
@@ -103,6 +98,14 @@ AbandonedConnectionCleanupThread.java:91
 java.util.concurrent.ThreadPoolExecutor.runWorker(Ljava/util/concurrent/ThreadPoolExecutor$Worker;)V
 ThreadPoolExecutor.java:1144
 ```
+
+> #### > 참고
+> - 분석을 실행하기 전에 먼저 `Keep unreachable objects` 설정 켜기
+> <img src="img/leak04.png">
+
+- 사실 unreachable objects 설정을 켜줘야 정확한 수치를 확인할 수 있다.
+
+<img src="img/leak07.png">
 
 ## Connection의 생명주기
 
