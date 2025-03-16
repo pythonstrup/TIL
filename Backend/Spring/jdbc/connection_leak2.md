@@ -73,3 +73,4 @@ public class JpaConfig {
 - [JPA/Hibernate Persistence Context](https://www.baeldung.com/jpa-hibernate-persistence-context)
 - [EntityManager를 주입할 때 @PersistContext 대신 @Autowired 를 사용하면 안될까?](https://velog.io/@biddan606/EntityManager%EB%A5%BC-%EC%A3%BC%EC%9E%85%ED%95%A0-%EB%95%8C-Autowired-vs-PersistContext)
 - [HikariCP의 커넥션 maxLifetime과 MySQL wait timeout간의 관계 알아보기!](https://seongonion.tistory.com/157)
+- [HikariCP와 커넥션 누수(Connection Leak) 관련 트러블슈팅](https://do-study.tistory.com/97)
