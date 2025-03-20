@@ -125,7 +125,7 @@ class MyTest {
 
     // then
     assertThat(sut.hasBookmark("my-link")).isTrue();
-    verify(sut).markModified(); // Interaction test![img.png](img.png)
+    verify(sut).markModified(); // Interaction test
   } 
 }
 ```
@@ -157,7 +157,7 @@ class MyTest {
 
     // then
     assertThat(sut.hasBookmark("my-link")).isTrue();
-    verify(sut).markModified(); // Interaction test![img.png](img.png)
+    verify(sut).markModified(); // Interaction test
   }
 }
 ```
