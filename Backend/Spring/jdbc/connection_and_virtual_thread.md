@@ -178,6 +178,19 @@ public DataSource readDataSource(final HikariConfig readHikariConfig) {
 }
 ```
 
+- 그림으로 구성해보면 아래와 같다.
+
+<img src="img/connection_and_virtual_thread03.png">
+
+### Fair Semaphore와의 차이?
+
+- 기아 상태를 피하기 위해 Fair Semaphore를 사용할 수 있지만, 순서를 보장하기 위해 따로 관리가 필요하기 때문에 약간 느릴 수 있다.
+- 아래와 같이 2번째 인자에 true 값을 넣어주는 걸로 `FairSync`를 사용하게 만들 수 있다. 
+
+```java
+new Semaphore(maximumPoolSize, true);
+```
+
 ---
 
 # Connector/J와 Virtual Thread
@@ -209,6 +222,14 @@ public DataSource readDataSource(final HikariConfig readHikariConfig) {
 ```kotlin
 implementation("com.mysql:mysql-connector-j:9.0.0")
 ```
+
+### Connector/J와 MySQL의 호환성
+
+- [Compatibility with MySQL and Java Versions](https://dev.mysql.com/doc/connector-j/en/connector-j-versions.html)
+
+> - MySQL Server versions: Connector/J 9.2 supports MySQL 8.0 and up.
+
+- MySQL 8.0 버전 이상이기만 하면 9.2로 업그레이드가 가능하다.
 
 ----
 
