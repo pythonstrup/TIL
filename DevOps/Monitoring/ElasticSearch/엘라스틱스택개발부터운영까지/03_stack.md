@@ -588,6 +588,221 @@ GET multifield_index/_search
 
 ---
 
+## 7. 인덱스 템플릿
+
+- 주로 설정이 동일한 복수의 인덱스를 만들 때 사용한다.
+  - 관리 편의성, 성능 등을 위해 인덱스를 파티셔닝하는 일이 많은데 이때 파티셔닝되는 인덱스들은 설정이 같아야 한다.
+
+### 7-1. 템플릿 확인
+
+- 등록된 템플릿 확인하기
+
+```http request
+GET _index_template
+```
+
+- 특정 인덱스 템플릿만 확인하기
+
+```http request
+GET _index_template/{template_name}
+```
+
+### 7-2. 템플릿 설정
+
+- 일반적으로 매핑과 세팅 설정을 가장 많이 한다.
+
+#### 7-2-1. 템플릿 생성
+
+```http request
+PUT _index_template/test_template
+{
+  "index_patterns": ["test_*"],
+  "priority": 1,
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1
+    },
+    "mappings": {
+      "properties": {
+        "name": {"type": "text"},
+        "age": {"type": "short"},
+        "gender": {"type": "keyword"}
+      }
+    }
+  }
+}
+```
+
+- 결과값
+
+```json
+{
+  "acknowledged": true
+}
+```
+
+- `index_patterns`: 새로 만들어지는 인덱스 중에 인덱스 이름이 인덱스 패턴과 매칭되는 경우 이 템플릿이 적용된다. 여기서는 `test_`로 시작되는 이름을 가진 인덱스들은 모두 `test_template`에 있는 매핑 세팅 등이 적용된다.
+- `priority`: 인덱스 생성 시 이름에 매칭되는 템플릿이 둘 이상일 때 템플릿이 적용되는 우선순위를 정할 수 있다. 숫자가 가장 높은 템플릿이 먼저 적용된다.
+- `template`: 새로 생성되는 인덱스에 적용되는 `settings`, `mappings` 같은 인덱스 설정을 정의한다.
+
+#### 7-2-2. 템플릿 적용
+
+- 템플릿을 적용할 때 기억해야 하는 것! 템플릿을 만들기 전에 이미 존재하던 인덱스는 비록 템플릿 패턴과 일치하더라도 템플릿이 적용되지 않는다.
+  - 즉 `test_template`을 만들기 전부터 존재했던 인덱스들은 템플릿의 영향을 받지 않는다.
+  - 오직 템플릿을 만든 이후에 새로 만들어지는 인덱스들만 템플릿의 영향을 받는다.
+- 인덱스를 만들면 다이나믹 매핑과 다르게, 템플릿에서 지정한 매핑값이 적용된 것을 확인할 수 있다.
+
+```http request
+PUT test_index1/_doc/1
+{
+  "name": "kim",
+  "age": 10,
+  "gender": "male"
+}
+```
+
+```json
+{
+  "_index": "test_index1",
+  "_id": "1",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "_seq_no": 0,
+  "_primary_term": 1
+}
+```
+
+- 여기서 인덱스 만들 때, 인덱스 이름이 `test_`로 시작하지 않으면 템플릿이 적용되지 않는다.
+- 그런데 만약 설정 값과 다른 타입의 도큐먼트를 입력하면 어떻게 될까?
+
+```http request
+PUT test_index2/_doc/1
+{
+  "name": "lee",
+  "age": "19 years",
+}
+```
+
+- 400 에러가 발생한다.
+
+```json
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "document_parsing_exception",
+        "reason": "[3:10] failed to parse field [age] of type [short] in document with id '1'. Preview of field's value: '19 years'"
+      }
+    ],
+    "type": "document_parsing_exception",
+    "reason": "[3:10] failed to parse field [age] of type [short] in document with id '1'. Preview of field's value: '19 years'",
+    "caused_by": {
+      "type": "number_format_exception",
+      "reason": "For input string: \"19 years\""
+    }
+  },
+  "status": 400
+}
+```
+
+#### 7-2-3. 템플릿 삭제
+
+- 템플릿을 지워도 기존 인덱스들은 영향을 받지 않는다. 단순히 템플릿이 지워지는 것 뿐이다.
+
+```http request
+DELETE _index_template/test_template
+```
+
+```json
+{
+  "acknowledged": true
+}
+```
+
+### 7-3. 템플릿 우선순위
+
+- 위에서 설명했다시피 숫자가 클수록 우선순위가 높다.
+- 7.8 이전 버전의 레거시 템플릿에서는 우선수위가 낮은 템플릿부터 차례로 병합되었으나, 새로운 인덱스 템플릿은 우선순위가 높은 템플릿으로 덮어쓰기 된다는 점을 기억하자.
+
+### 7-4. 다이내믹 템플릿
+
+- 왜 필요할까?
+- 로그 시스템이나 비정형화된 데이터를 인덱싱하는 경우를 생각해보자.
+  - 로그 시스템의 구조를 알지 못하기 때문에 필드 타입을 정확히 정의하기 힘들고, 필드 개수를 정할 수 없는 경우도 있다.
+  - 다이내믹 템플릿은 이처럼 매핑을 정확하게 정할 수 없거나 대략적인 데이터 구조만 알고 있을 때 사용할 수 있는 방법이다.
+  - 인덱스를 만들 때 `dynamic_templates`를 추가하면 된다.
+
+```http request
+PUT dynamic_index1
+{
+  "mappings": {
+    "dynamic_templates": [ 
+        {
+         "my_string_fields": {
+            "match_mapping_type": "string",
+            "mapping": {"type": "keyword"}
+        } 
+      }
+    ]
+  }
+}
+```
+
+```json
+{
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "dynamic_index1"
+}
+```
+
+- 여기서 `my_string_fileds`는 임의로 정의한 다이내믹 템플릿의 이름이다. 이 이름 밑으로 2개의 설정이 있다.
+1. `match_mapping_type` 조건문 혹은 매핑 트리거다. 조건에 만족할 경우 트리거링이 된다.
+2. `mapping`은 트리거링이 된 경우 실제 적용될 매핑이다.
+
+
+- `match`와 `unmatch`
+
+```http request
+PUT dynamic_index2
+{
+  "mappings": {
+    "dynamic_templates": [ 
+        {
+         "my_string_fields": {
+            "match": "long_*",
+            "unmatch": "*_text",
+            "mapping": {"type": "long"}
+        } 
+      }
+    ]
+  }
+}
+```
+
+- `match`: 정규표현식을 이용해 필드명 검사. 조건에 맞으면 `mapping`에 의해 필드들은 모두 long 타입을 갖는다.
+- `unmatch`: 이 조건에 맞는 경우, `mapping`에서 제외한다.
+- 도큐먼트를 입력해보자.
+
+```http request
+PUT dynamic_index2/_doc/1
+{
+  "long_num": "5",
+  "long_text": "170"
+}
+```
+
+- `long_num`은 `long_*`에 매칭하므로 long 타입으로 매핑된다.
+- `long_text`는 match와 unmatch 둘 다 부합하여 다이내믹 템플릿에 제외되어 매핑에 의해 텍스트/키워드를 갖는 멀티 필드 타입이 된다.
+
+---
+
 # 참고 자료
 
 - 엘라스틱 스택 개발부터 운영까지, 김준영 & 정상운 지음, 박재호 감수, 펴낸곳: 책만
