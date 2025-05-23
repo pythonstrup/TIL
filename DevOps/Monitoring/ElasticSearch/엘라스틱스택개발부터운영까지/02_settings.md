@@ -218,6 +218,31 @@ kibana:
      retries: 120
 ```
 
+- LogStash
+
+```yaml
+logstash01:
+   depends_on:
+     es01:
+       condition: service_healthy
+     kibana:
+       condition: service_healthy
+   image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+   labels:
+     co.elastic.logs/module: logstash
+   user: root
+   volumes:
+     - certs:/usr/share/logstash/certs
+     - logstashdata01:/usr/share/logstash/data
+     - "./logstash_ingest_data/:/usr/share/logstash/ingest_data/"
+     - "./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro"
+   environment:
+     - xpack.monitoring.enabled=false
+     - ELASTIC_USER=elastic
+     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+     - ELASTIC_HOSTS=https://es01:9200
+```
+
 
 # 참고 자료 
 
