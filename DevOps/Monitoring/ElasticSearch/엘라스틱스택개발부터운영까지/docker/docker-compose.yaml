@@ -159,7 +159,7 @@ services:
       co.elastic.logs/module: logstash
     user: root
     volumes:
-      - certs:/usr/share/logstash/certs
+      - certs:/usr/share/logstash/config/certs
       - logstashdata01:/usr/share/logstash/data
       - "./logstash_ingest_data/:/usr/share/logstash/ingest_data/"
       - "./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro"

@@ -193,6 +193,247 @@ filter {
 }
 ```
 
+#### 3-2-2. dissect
+
+- 패턴을 이용해 문자열을 분석
+- 주요 정보를 필드로 추출
+- 기호
+  - `->`: 공백 무시. `%{필드명->}`을 입력하면 공백이 몇 칸이든 하나의 공백으로 인식한다.
+    - ex) `%{?->}`라고 입력하면 공백들을 하나의 필드로 만든 다음 무시.
+  - `+`: 여러 필드를 하나의 필드로 합침. `%{+필드명}`을 작성하면 어러 개의 필드를 하나의 필드로 합쳐서 표현.
+    - ex) `%{ip} %{+ip}`: `ip` 필드에 2개를 합친 값을 표여준다.
+
+#### 3-2-3. grok
+
+- 정규 표현식을 통한 파싱
+- 지원하는 패턴
+  - `NUMBER`
+  - `SPACE`
+  - `URI`
+  - `IP`
+  - `SYSLOGBASE`
+  - `TIMESTAMP_ISO8601`
+  - `DATA`: 이 패턴의 직전 패턴부터 다음 패턴 사이를 모두 인식
+  - `GREEDYDATA`
+
+#### 3-2-4. 대소문자 변경
+
+- 필터 플러그인을 통해 쉽게 가공 가능하다. 아래와 같이 `conf` 파일만 수정하면 끝
+
+```config
+...
+filter {
+  ...
+  mutate {
+    uppercase => ["level"]
+  }
+}
+...
+```
+
+- `level` 필드만 대문자로 변경하는 예시
+
+#### 3-2-5. 날짜/시간 문자열 분석
+
+- 포맷이 통일되어 있지 않다는 문제. ISO8601과 같은 표준 표기법이 있지만 국가나 문화권별로 표현하는 방법이 다르다.
+
+```config
+filter {
+  ...
+  mutate {
+    strip => "timestamp"
+  }
+  date {
+    match => [ "timestamp", "yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss.SSS" ]
+  }
+}
+```
+
+- `mutate`에 `strip`을 사용해서 필드 양옆에 있는 공백을 제거해준다.
+- 그리고 `date`에 `match`를 통해 포맷이 매칭되게 해주면 끝!
+
+#### 3-2-6. 조건문
+
+- `if`, `else if`, `else`를 제공한다. 
+
+```config
+filter {
+  if ["level"] == "INFO"  {
+    drop {}
+  }
+  else if ["level"] == "WARN" {
+    remove_field => ["ip", "port", "timestamp", "level"]
+  }
+}
+```
+
+- `INFO` 레벨일 때는 아예 제거.
+- `WARN` 레벨에서는 `ip`, `port`, `timestamp`, `level` 필드 제거.
+
+### 3-3. 출력
+
+- 자주 사용되는 출력 플러그인
+1. `elasticsearch`: 가장 많이 사용. bulk API를 사용해 엘라스틱서치 인덱싱을 수행
+2. `file`: 지정한 파일의 새로운 줄에 데이터를 기록
+3. `kafka`: 카프카 토픽에 데이터를 기록.
+
+```config
+ouput {
+  file {
+    path => "~~~~~~.log"
+  }
+  elasticsearch {
+    index => "output"
+  }
+}
+```
+
+- `elasticsearch` 플러그인 옵션
+  - `hosts`
+  - `index`
+  - `document_id`: 인덱싱될 문서의 아이디를 직접 지정
+  - `user`/`password`: 보안 기능이 활성화되어 있을 때 사용.
+  - `pipeline`: 등록된 인제스트 파이프라인 활용.
+  - `template`, `template_name`: 커스텀 템플릿을 사용하기 위한 옵션.
+
+### 3-4. 코덱
+
+- 입력/출력/필터와 달리 독립적으로 동작하지 않고 입력과 출력 과정에 사용되는 플러그인.
+  - 입/출력 시 메시지를 적절한 형태로 변환하는 스트림 필터.
+  - 입력과 출력 단계에서 데이터의 인코딩/디코딩을 담당한다.
+- 코덱 플러그인
+  - `json`
+  - `plain`
+  - `rubydebug`
+
+- 입력 코덱 사용
+
+```config
+input {
+  file {
+    path => "~~~~~~~~.log"
+    codec => json
+  }
+  ...
+}
+```
+
+- 출력 코덱 사용
+
+```config
+ouput {
+  stdout {
+    #codec => "line"      // 라인 형식으로 출력
+    #codec => "json"
+    #codec => "rubydebug"
+  }
+}
+```
+
+----
+
+## 4. 다중 파이프라인
+
+- 하나의 로그스태시에서 여러 개의 파이프라인 활용
+
+<img src="img/logstash04.png">
+
+- 하나의 파이프라인으로 다중 처리를 할 경우 아래와 같이 파이프라인이 지저분해진다.
+
+```config
+input {
+  beats {... tag => beats }
+  kafka {... tag => kafka }
+}
+
+filter {
+  if "beats" in [tags] {
+    dissect {...}
+  }
+  else if "kafka" in [tags] {
+    grok {...}
+  }
+}
+
+output {
+  if "beats" in [tags] {
+    elasticsearch {
+      index => "A"
+    }
+  }
+  else if "kafka" in [tags] {
+    elasticsearch {
+      index => "B"
+    }
+  }
+}
+```
+
+- 요구사항이 바뀔 때마다 더 지저분해진다.
+
+### 4-1. 다중 파이프라인 작성
+
+- `pipelines.yml` 파일을 수정해야 한다. 디렉토리 위치는 `config`이다.
+- 파이프라인 설정
+  - `pipeline.id`
+  - `path.config`: 파이프라인 설정 파일의 위치. 이 설정을 통해 `.conf` 파일을 매핑.
+  - `pipeline.workers`: 병렬로 처리하기 위한 워커 수. 기본적으로 호스트의 CPU 수와 동일
+  - `pipeline.batch.size`: 하나의 워커당 최대 몇까지의 이벤트를 동시에 처리할지를 결정.
+  - `queue.type`: 파이프라인에서 사용할 큐의 종류. 기본적으로 `memory` 사용, `persisted` 타입을 선택해 이벤트의 유실을 좀 더 최소화할 수 있다.
+
+----
+
+## 5. 모니터링
+
+- 두 가지 방법이 있다.
+1. 로그스태시가 제공하는 API를 활용해 특정 시점의 통계 정보를 얻는 방법
+2. 모니터링 기능을 활성화해서 지속적인 통계 정보를 수집하고, 키바나를 통해 대시보드 형태로 연속적인 모니터링을 수행하는 방법
+
+### 5-1. API를 활용하는 방법
+
+- 모니터링을 위한 API 종류
+  - `/_node?pretty`: 노드
+  - `/_node/plugins?pretty`: 플러그인
+  - `/_node/stats?pretty`: 노드 통계
+  - `/_node/hot_threads?pretty`: 핫 스레드
+- 위 API 종류별로 상세 정보들을 확인할 수 있다.
+- 타입별 모니터링 노드
+  - `/_node/pipelines?pretty`: 파이프라인 종류. 각 파이프라인에 할당된 배치 크기, 워커 수 등의 정보
+  - `/_node/os?pretty`: os 종류와 버전
+  - `/_node/jvm?pretty`: 자바 가상 머신의 버전, GC 방식, 힙 메모리 등의 정보
+- 타입별 모니터링 노드 통계
+  - `/_node/stats/jvm?pretty`
+  - `/_node/stats/process?pretty`
+  - `/_node/stats/events?pretty`
+  - `/_node/stats/pipelines?pretty`
+  - `/_node/stats/reloads?pretty`
+  - `/_node/stats/os?pretty`
+
+### 5-2. 모니터링 기능 활성화
+
+- `logstash.yml`에 설정을 추가해야 한다.
+  - `xpack.monitoring.enabled`: 모니터링 기능 활성 여부
+  - `xpack.monitoring.elasticsearch.hosts`: 모니터링을 위한 엘라스틱서치의 주소
+
+```yaml
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.username: elastic
+xpack.monitoring.elasticsearch.password: elastic_password
+xpack.monitoring.elasticsearch.hosts: ["https://es01:9200"]
+xpack.monitoring.elasticsearch.ssl.certificate_authority: "/usr/share/logstash/config/certs/ca/ca.crt"
+```
+
+- Kibana에서 Stack Monitoring 메뉴로 들어가자
+
+<img src="img/logstash05.png">
+
+- `Or, set up with self monitoring` 클릭 > `Turn on monitoring` 버튼 클릭
+
+<img src="img/logstash06.png">
+
+- `docker-cluster`에 등록한 인스턴스들을 확인할 수 있다.
+  - LogStash 항목도 보인다.
+
 ----
 
 # 참고 자료
