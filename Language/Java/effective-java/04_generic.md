@@ -142,6 +142,87 @@ public static <E> Set<E> union(Set<E> s1, Set<E> s2) {
 }
 ```
 
+---
+
+## item31. 한정적 와일드카드를 사용해 API 유연성을 높이라.
+
+- 매개변수화 타입은 불공변. (type of `List<Type1>` != type of `List<Type2>`)
+- `Integer`는 `Number`의 하위 타입. 그러나 매개변수화 타입이 불공변이기 때문에 `Stack<Number>`에 `Integer`를 넣으려고 하면 오류 메시지가 뜬다.
+- 이런 상황에 대처하기 위해 한정적 와일드카드 타입이라는 특별한 매개변수화 타입을 지원한다.
+
+```java
+Iterable<? extends Number>
+```
+
+- 메시지는 분명하다. 유연성을 극대화하려면 원소의 생산자나 소비자용 입력 매개변수에 와일드카드 타입을 사용하라.
+  - 한편, 입력 매개변수가 생산자와 소비자 역할을 동시에 한다면 와일드카드 타입을 써도 좋을 게 없다.
+  - 타입을 정확히 지정해야 하는 상황으로, 이때는 와일드카드 타입을 쓰지 말아야 한다.
+- 즉, 매개변수화 타입 `T`가 생산자라면 `<? extends T>`를 사용하고, 소비자라면 `<? super T>`를 사용하라.
+  - ex) `Comparable`과 `Comparator`는 모두 소비자다. => `<? super T>`사용
+  - 소비자란? 데이터를 읽어서 어떤 동작을 수행하지만, 반환하거나 저장하진 않음을 뜻한다.
+
+```java
+// 생산자
+public void pushAll(Iterable<? extends T> items) {
+  for (E e: src)
+    push(e);
+}
+
+// 소비자
+public void popAll(Iterable<? super T> dst) {
+  while (!isEmpty())
+    dst.add(pop());
+}
+```
+
+- 클래스 사용자가 와일드카드 타입을 신경 써야 한다면 그 API에 무슨 문제가 있을 가능성이 크다.
+- **기본 규칙**: 메소드 선언에 타입 매개변수가 한 번만 나오면 와일드카드로 대체하라.
+  - 이때 비한정적 타입 매개변수라면 비한정적 와일드카드로 바꾸고, 한정적 타입 매개변수라면 한정적 와일드 카드로 바꾸면된다.
+
+> #### GPT에게 물어본 타입매개변수를 써야하는 시점
+> ```java
+> public static <T> T pickOne(T a, T b) {
+>    return Math.random() > 0.5 ? a : b;
+>    }
+> ```
+> - 반환 타입에도 쓰이고, 두 매개변수 간의 타입 일치가 중요할 때!
+
+- 헬퍼 메소드을 제네릭으로 선언해 타입 안전성을 보장하고, 외부에서는 멋진 선언을 유지할 수도 있다.
+
+---
+
+## item32. 제네릭과 가변인수를 함께 쓸 때는 신중하라
+
+- 가변인수의 허점
+  - 가변인수 메소드를 호출하면 가변인수를 담기 위한 배열이 자동으로 하나 만들어진다. 
+  - 그런데 내부로 감춰야 했을 이 배열을 클라이언트에게 노출하는 문제가 생긴다.
+  - 그 결과 `varargs` 매개변수에 제네릭이나 매개변수화 타입이 포함되면 알기 어려운 컴파일 경고가 발생한다.
+- 메소드를 선언할 때 실체화 불가 타입으로 `varargs` 매개변수를 선언하면 컴파일러가 경고를 보낸다.
+  - 가변인수 메소드를 호출할 때도 `varargs` 매개변수가 실체화 불가 타입으로 추론되면, 그 호출에 대해서도 경고를 낸다.
+
+```java
+static void dangerous(List<String> ...stringLists) {
+  List<Integer> intList = List.of(42);
+  Object[] objects = stringLists;
+  objects[0] = intList;             // 힙 오염 발생
+  String s = stringLists[0].get(0); // ClassCastException
+}
+```
+
+- 이처럼 타입 안전성이 깨지니 제네릭 varargs 배열 매개변수에 값을 저장하는 것은 안전하지 않다.
+- 그런데 여기서 생각해보자! 제네릭 배열을 직접 생성하는 건 허용하지 않으면서 제네릭 `varargs` 매개변수를 받는 메소드를 선언할 수 있게 한 이유는 무엇일까?
+  - 제네릭이나 매개변수화 타입의 `varargs` 매개변수를 받는 메소드가 실무에서 매우 유용하기 때문이다.
+  - 그래서 언어 설계자는 이 모순을 수용하기로 했다.
+  - Java에서는 이런 메소드를 여럿 제공. (다행인 점은 타입 안전하다는 점.) 
+    - `Arrays.asList(T... a)` 
+    - `Collections.addAll(Collection<? super T> c, T... elements)`
+    - `EnumSet.of(E first, E... rest)`
+- `@SafeVarargs`는 메소드 작성자가 그 메소드가 타입 안전함을 보장하는 장치.
+- 제네릭 `varargs` 매개변수 배열에 다른 메소드가 접근하도록 허용하면 안전하지 않는 점! 단 예외 두 가지!
+  1. `@SafeVarargs`로 제대로 애노테이트된 또 다른 `varargs` 메소드에 넘기는 것은 안전.
+  2. 그저 이 배열 내용의 일부 함수를 호출만 하는 (`varargs`를 받지 않는) 일반 메소드에 넘기는 것도 안전하다.
+
+
 <br/>
 
 # 참고자료
