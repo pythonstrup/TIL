@@ -222,6 +222,60 @@ static void dangerous(List<String> ...stringLists) {
   1. `@SafeVarargs`로 제대로 애노테이트된 또 다른 `varargs` 메소드에 넘기는 것은 안전.
   2. 그저 이 배열 내용의 일부 함수를 호출만 하는 (`varargs`를 받지 않는) 일반 메소드에 넘기는 것도 안전하다.
 
+----
+
+## item33. 타입 안전 이종 컨테이너를 고려하라
+
+- 컨테이너 대신 키를 매개변수화한 다음, 컨테이너에 값을 넣거나 뺄 때 매개변수화한 키를 함께 제공하면 된다.
+  - 이렇게 하면 제네릭 타입 시스템이 값의 타입이 키와 같음을 보장해줄 것이다.
+  - 이러한 설계 방식을 `타입 안전 이종 컨테이너 패턴 type safe heterogeneous container pattern`dlfk gksek.
+
+```java
+public class Favorites {
+  public <T> void putFavorite(Class<T> type, T instance);
+  public <T> T getFavorite(Class<T> type);
+}
+```
+
+```java
+Favorites favorites = new Favorites();
+favorites.putFavorite(String.class, "Hello");
+favorites.putFavorite(Integer.class, 241);
+favorites.putFavorite(Class.class, Favorites.class);
+```
+
+- `Favorites` 인스턴스는 타입 안전하다.
+- 실제 구현은 아래와 같다.
+
+```java
+public class Favorites {
+  private Map<Class<?>, Object> favorites = new HashMap<>();
+  
+  public <T> void putFavorite(Class<T> type, T instance) {
+    favorites.put(Objects.requireNonNull(type), instance);
+  }
+  
+  public <T> T getFavorite(Class<T> type) {
+    return type.cast(favorites.get(type));  
+  }
+}
+```
+
+
+#### 제약1. 악의적인 클라이언트가 `Class` 객체를 로 타입으로 넘기면 `Favorites` 인스턴스의 타입 안전성이 쉽게 깨진다.
+- 만약 타입 불변식을 어기는 일이 없도록 보장하려면 `putFavorite` 메소드에서 인수로 주어진 `instance`의 타입이 `type`으로 명시한 타입과 같은지 확인하면 된다.
+
+```java
+public <T> void putFavorite(Class<T> type, T instance) {
+  favorites.put(Objects.requireNonNull(type), type.cast(instance));
+}
+```
+
+- `java.util.Collections`에 `checkedSet`, `checkedList`, `checkedMap` 같은 메소드가 바로 이 방식을 적용한 컬렉션 래퍼들이다.
+
+#### 제약2. 실체화 불가 타입에는 사용할 수 없다.
+
+- `String`이나 `String[]`은 저장할 수 있어도 `List<String>`은 저장할 수 없다.
 
 <br/>
 
