@@ -97,7 +97,160 @@ public static Optional<Operation> fromString(String symbol) {
 
 ---
 
-## item36. 
+## item36. ordinal 인덳이 대신 EnumMap을 사용하라
+
+```java
+public class Plant {
+  enum LifeCycle { ANNUAL, PERNNIAL, BIENNIAL }
+}
+```
+
+- 아래처럼 `ordinal()`을 인덱스로 사용하면 무엇이 문제일까?
+
+1. 배열은 제네릭과 호환되지 않으므로 비검사 형변환을 수행해야 하고 깔끔히 컴파일되지 않을 것이다.
+2. 배열은 각 인덱스의 의미를 모르니 출력 결과에 직접 레이블을 달아야 한다.
+3. 가장 심각한 문제! 정확한 정수값을 사용한다는 것을 개발자가 직접 보증해야 한다. (잘못된 값이 사용될 우려 있음.)
+
+```java
+for (Plant p: garden) {
+  plantByLifeCycle[p.lifeCycle.ordinal()].add(p);
+}
+```
+
+- 반면 `EnumMap`을 사용하면?
+1. 더 짧고 명료하며 안전하고 성능도 원래 버전과 비등.
+2. 안전하지 않은 형변환은 쓰지 않고, 맵의 키인 열거 타입이 그 자체로 출력용 문자열을 제공하여 출력 결과에 직접 레이블을 달 일도 없다.
+3. 나아가 배열 인덱스를 계산하는 과정에서 오류가 날 가능성도 원천봉쇄된다.
+
+```java
+Arrays.stream(garden)
+  .collect(
+      Collectors.groupingBy(Plant::getLifeCycle, () -> new EnumMap(LifeCycle.class), toSet()));
+```
+
+- `EnumMap`은 내부적으로 **배열 기반**을 동작하기 때문에 `HashMap`보다 훨씬 빠르고 메모리 효율적이다.
+  - Enum 타입을 key로 사용할 때 무조건 `HashMap`보다 `EnumMap`이 더 낫다.
+
+---
+
+## item38. 확장할 수 있는 열거 타입이 필요하면 인터페이스를 사용하라
+
+- 대부분의 상황에서 열거 타입을 확장하는 건 좋은 생각이 아니다.
+  - 확장한 타입의 원소는 기반 타입의 원소로 취급하지만 그 반대는 성립하지 않는다면 이상하지 않는가?
+  - 기반 타입과 확장된 타입들의 원소 모두를 순회할 방법도 마땅치 않다.
+  - 마지막으로, 확장성을 높이려면 고려할 요소가 늘어나 설계와 구현이 복잡해진다.
+- 그런데 확장할 수 잇는 열거 타입이 어울리는 쓰임이 최소한 하나가 있다. 바로 연산 코드다.
+  - 연산 코드의 각 원소는 특정 기계가 수행하는 연산을 뜻한다.
+- 다행히 열거 타입으로 이 효과를 내는 멋진 방법이 있다.
+  - 기본 아이디어는 열거 타입이 임의의 인터페이스를 구현할 수 있다는 사실을 이용하는 것이다.
+  - 연산 코드용 인터페이스를 정의하고 열거 타입이 이 인터페이스를 구현하게 하면 된다. 이때 열거 타입이 그 인터페이스의 표준 구현체 역할을 한다.
+
+```java
+public interface Operation {
+  double apply(double x, double y);
+}
+
+public enum BasicOperation implements Operation {
+  PLUS("+")   {public double apply(double x, double y) {return x + y;}},
+  MINUS("-")  {public double apply(double x, double y) {return x - y;}},
+  TIMES("*")  {public double apply(double x, double y) {return x * y;}},
+  DIVIDE("*") {public double apply(double x, double y) {return x / y;}},
+  ;
+  private final String symbol;
+  
+  BasicOperation(String symbol) {
+    this.symbol = symbol;
+  }
+}
+```
+
+- 열거 타입인 `BasicOperation`은 확장할 수 없지만, 인터페이스인 `Operation`은 확장할 수 있고, 이 인터페이스를 연산의 타입으로 사용하면 된다.
+  - `Operation`을 구현한 또다른 열거 타입을 정의해 `BasicOperation`를 대체할 수 있다.  
+
+```java
+public enum ExtendedOperation implements Operation {
+  EXP("^") {public double apply(double x, double y) {return Math.pow(x, y);}},
+  ;
+  private final String symbol;
+  
+  ExtendedOperation(String symbol) {
+    this.symbol = symbol;
+  }
+}
+```
+
+#### 문제점
+
+- 인터페이스르 사용해 확장 가능한 열거 타입을 흉내 내는 방식에도 한 가지 사소한 문제가 있다.
+- 바로 열거 타입끼리 구현을 상속할 수 없다는 점이다.
+  - 아무 상태에도 의존하지 않는다면 인터페이스의 디폴트 구현을 사용해볼 수 있을 것이다.
+- 하지만 `BasicOperation`, `ExtendedOperation`의 경우 로직이 각각에 들어가야만 한다.
+  - 이 경우에는 중복량이 적어 문제가 되진 않지만, 공유하는 기능이 많다면 그 부분을 별도의 도우미 클래스나 정적 메소드로 분리하는 방식으로 중복을 제거할 수 있다.
+
+---
+
+## item39. 명명 패턴보다 애너테이션을 사용하라
+
+- 명명 패턴을 사용했을 때의 문제
+1. 오타로 인해 부작용 발생
+   - JUnit3까지는 메소드명을 `test`로 시작하게끔 했다. 하지만 `tset`와 같이 오타를 내면 테스트를 무시하는 문제가 있었다.
+2. 올바른 프로그램 요소에서만 사용되리라 보증할 방법이 없다.
+   - `TestSafetyMechanisms`로 클래스 이름을 지어 JUnit3에 던져줌. => 하지만 JUnit3은 개발자의 의도대로 테스트를 실행하지 않을 것이다.
+3. 프로그램 요소를 매개변수로 전달할 마땅한 방법이 없다.
+
+- annotation은 이 모든 문제를 해결해주는 멋진 개념.
+  - JUnit4에서 전면 도입
+- `@Test`와 같이 아무 매개변수 없이 단순이 대상에 마킹하는 어노테이션을 `마커 marker` 어노테이션이라 한다.
+- 예외를 처리하기 위한 `@ExceptionTest`라는 어노테이션을 만들었다고 가정. (대신 러너 코드를 만들어야 한다.)
+  - 이 경우 예외 클래스 타입을 매개변수로 받는다. => 그리고 정확히 해당 타입의 예외가 터졌는지 러너 코드에서 확인.
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface ExceptionTest {
+  Class<? extends Throwable>[] value();
+}
+```
+
+---
+
+## item40. `@Override` 어노테이션을 일관되게 사용하라
+
+- `@Override` 어노테이션은 메소드 선언에만 달 수 있으며, 상위 타입의 메소드를 재정의했음을 의미.
+  - 이 어노테이션을 통해 악명 높은 버그들을 예방할 수 있다.
+- 예를 들면 아래와 같이 `equals`를 `오버라이딩 overriding`이 아닌 `오버로딩 overloading`을 해버리는 실수가 나올 수 있는데 `@Override`가 달려 잇으면 컴파일 오류가 발생한다.
+
+```java
+public class Bigram {
+  private final char first;
+  private final char second;
+  
+  // ...
+  
+  public boolean equals(Bigram b) { // 매개변수 타입이 Object여야 오버라이딩으로 동작한다.
+    return first == b.first && second == b.second;
+  }
+} 
+```
+
+---
+
+## item41. 정의하려는 것이 타입이라면 마커 인터페이스를 사용하라
+
+- 이 아이템은 reversed item22(타입을 정의할 게 아니라면 인터페이스를 사용하지 말라.)이다.
+- 자신이 구현하는 클래스가 특정 속성을 가짐을 표시해주는 인터페이스를 `마커 인터페이스 marker interface`라고 한다.
+  - `Serializable` 인터페이스가 대표적인 예시
+- '마커 어노테이션이 등장하면서 마커 인터페이스가 구식이 되었다'고 평. 하지만 사실이 아니다. 마커 인터페이스는 두 가지 면에서 마커 어노테이션보다 낫다.
+1. 마커 인터페이스는 이를 구현한 클래스의 인스턴스들을 구분하는 타입으로 쓸 수 있으나, 마커 어노페이션은 그렇지 않다.
+   - 어노테이션을 사용했을 때 런타임에야 발견할 오류를 인터페이슬 사용하면 컴파일 타임에 잡을 수 있다.
+2. 적용 대상을 더 정밀하게 지정할 수 있다.
+   - 적용 대상(`@Target`)을 `ElementType.TYPE`으로 선언한 어노테이션은 모든 타입에 달 수 있다. 부착할 수 있는 타입을 제한하지는 못한다는 것이다.  
+
+- 반면 마커 어노테이션이 나은 점. 거대한 어노테이션 시스템의 지원을 받을 수 있다.
+  - 어노테이션을 적극 활용하는 프레임워크에서는 마커 어노테이션을 사용하는 것이 일관성을 지키는 데 유리하다.
+- 언제 마커 인터페이스를 적용해야 할까?
+  - "이 마킹이 된 객체를 매개변수로 받는 메소드를 작성할 일이 있을까?"라고 자문해보고 "예"라면 마커 인터페이스를 써야 한다.
+  - 해당 메소드의 매개변수 타입으로 사용해 컴파일 타임에 오류를 잡을 수 있기 때문이다.
 
 
 <br/>
