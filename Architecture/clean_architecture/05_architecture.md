@@ -647,3 +647,247 @@ classDiagram
   - 외부로부터 데이터를 수신하는 경우, `서비스 리스너 service listener`가 서비스 인터페이스로부터 데이터를 수신하고, 데이터를 애플리케이션에서 사용할 수 있게 간단한 데이터 구조로 포맷을 변경한다.
   - 그런 후 이 데이터 구조는 서비스 경계를 가로질러서 내부로 전달된다.
 
+---
+
+## 24장 부분적 경계
+
+- 아키텍처 경계를 완벽하게 만드는 데는 비용이 많이 든다.
+  - 쌍방향의 다형적 Boundary 인터페이스
+  - Input과 Output을 위한 데이터 구조
+  - 두 영역을 독립적으로 컴파일하고 배포할 수 있는 컴포넌트로 격리, 의존성 관리
+- `부분적 경계`
+
+### 마지막 단계를 건너뛰기
+
+- 부분적 경계를 생성하는 방법
+  - 독립적으로 컴파일하고 배포할 수 있는 컴포넌트를 만들기 위한 작업은 모두 수행한 후, 단일 컴포넌트에 그대로 모아만 두는 것
+  - 쌍방향 인터페이스도 그 컴포넌트에 있고, 입력/출력 데이터 구조도 거기에 있으며, 모든 것이 완전히 준비되어 있다.
+  - 하지만 이 모두를 단일 컴포넌트로 컴파일해서 배포한다.
+- 부분적 경계를 만들려면 완벽한 경계를 만들 때 만큼의 코드량과 사전 설계가 필요하다.
+  - 하지만 다수의 컴포넌트를 관리하는 작업은 하지 않아도 된다.
+  - 추적을 위한 버전 번호도 없으며, 배포 관리 부담도 없다. -> 꽤나 큰 차이다.
+
+### 일차원 경계
+
+- 완벽한 형태의 아키텍처 경계는 양방향으로 격리된 상태를 유지해야 하므로 쌍방향 Boundary 인터페이스를 사용한다.
+  - 양방향으로 격리된 상태를 유지하려면 초기 설정할 때나 지속적으로 유지할 때도 비용이 많이 든다.
+- 추후 완벽한 형태의 경계로 확장할 수 있는 공간을 확보하고자 할 때 활용할 수 있는 더 간단한 구조. 아래 형태.
+  - 전통적인 전략 패터
+
+```mermaid
+classDiagram
+    Client --> ServiceBoundary: 사용
+    ServiceImpl --|> ServiceBoundary: 구현
+    ServiceImpl ..> Client
+
+    namespace l1 {
+      class Client {
+      }
+    }
+    namespace l2 {
+      class ServiceBoundary {
+          <<interface>>
+      }        
+    }
+    namespace l3 {
+      class ServiceImpl {
+      }
+    }
+```
+
+- 여기서 점선 화살표는 생겨서는 안 될 비밀 통로.
+
+### 퍼사드
+
+- 위 방식보다 더 단순한 경계
+
+```mermaid
+flowchart
+    Client --> f[Facade]
+    f --> s1[Service]
+    f --> s2[Service]
+    f --> s3[Service]
+    f --> s4[Service]
+```
+
+- 하지만 Client가 모든 서비스 클래스에 대해 추이 종속성을 가지게 된 것을 주목.
+  - 정적 언어였다면 서비스 클래스 중 하나에서 소스 코드가 변경되면 Client도 무조건 재컴파일해야 한다.
+  - 이런 구조에서는 비밀 통로 또한 정말 쉽게 만들 수 있다.
+
+---
+
+## 25장 계층과 경계
+
+- 시스템이 세 가지 컴포넌트(UI, 업무 규칙, 데이터베이스)로만 구성된다고 생각하기 쉽다.
+  - 몇몇 단순한 시스템에서는 이 정도로 충분하다.
+  - 하지만 대다수의 시스템에서 컴포넌트의 개수는 이보다 훨씬 많다.
+
+### 움퍼스 사냥 게임
+
+- 게임 규칙과 UI(텍스트 기반)를 분리, 다양한 언어로 발매
+- 게임의 상태: 영속적인 저장소(플래시 메모리?, 클라우드?, RAM?)
+- 아래의 그림과 같이 의존성 규칙을 준수할 수 있도록 만들어야 한다.
+
+```mermaid
+flowchart
+    subgraph Language
+      e[English UI]
+      s[Spanish UI]
+    end
+    
+    subgraph Data 
+      f[Flash Data]
+      c[Cloud Data]
+    end
+    
+    e --> g[Game Rules]
+    s --> g
+    f --> g
+    c --> g
+```
+
+### 클린 아키텍처?
+
+- ex) UI에서 언어가 유일한 변경의 축은 아니다.
+- 변경의 축에 의해 정의되는 아키텍처 경계가 잠재되어 있을 수도 있다.
+  - 아마도 해당 경계를 가로지르는, 그래서 언어를 통신 메커니즘으로부터 격리하는 API를 생성해야 할 수도 있다.
+
+```mermaid
+classDiagram
+    SMS --|> TextDelivery
+    Console --|> TextDelivery
+    TextDelivery --> Language
+    
+    Language <|-- English
+    Language <|-- Spanish
+    Language --> GameRules
+    
+    DataStorage <|-- Cloud
+    DataStorage <|-- Flash
+    GameRules <-- DataStorage
+
+    class TextDelivery {
+        <<interface>>
+    }
+    class Language {
+        <<interface>>
+    }
+    class DataStorage {
+        <<interface>>
+    }
+```
+
+- 순전히 API 컴포넌트에 집중하면 다이어그램을 단순화할 수 있다.
+
+```mermaid
+classDiagram
+    GameRules <-- Language
+    Language <-- TextDelivery
+    GameRules <-- DataStorage
+
+    class TextDelivery {
+        <<interface>>
+    }
+    class Language {
+        <<interface>>
+    }
+    class DataStorage {
+        <<interface>>
+    }
+```
+
+- 그 결과 `GameRules`는 최상위에 놓인다.
+  - 최상위 수준의 정책을 가지는 컴포넌트이므로 이치에 맞는 배치이다.
+- 이 구성은 데이터 흐름을 두 개의 흐름으로 효과적으로 분리한다.
+  - 왼쪽의 흐름은 사용자와의 통신에 관여하며,
+  - 오른쪽의 흐름은 데이터 영속성에 관여한다.
+
+### 흐름 횡단하기
+
+- 데이터 흐름은 위의 예시보다 더 많을 수 있다.
+- 만약 네트워크상에서 여러 사람이 함께 플레이할 수 있어야 하는 기능이 추가되어야 하면 아래와 같이 네트워크 컴포넌트를 추가해야 한다. 
+
+
+```mermaid
+classDiagram
+    GameRules <-- Language
+    GameRules <-- DataStorage
+    GameRules <-- Network
+    
+    class Language {
+        <<interface>>
+    }
+    class DataStorage {
+        <<interface>>
+    }
+    class Network {
+         <<interface>>
+    }
+```
+
+### 흐름 분리하기
+
+```mermaid
+classDiagram
+    MoveManagement <-- Network    
+    MoveManagement <-- Language
+    MoveManagement <-- DataStorage
+    PlayerManagement <-- MoveManagement 
+    
+    class PlayerManagement {
+        <<interface>>
+    }
+    class Language {
+        <<interface>>
+    }
+    class DataStorage {
+        <<interface>>
+    }
+    class Network {
+         <<interface>>
+    }
+```
+
+- 마이크로서비스 API 추가하기
+
+```mermaid
+classDiagram
+    PlayerManagement <-- PlayerMgtImpl
+    PlayerManagement <-- PlayerMgtProxy
+    PlayerMgtImpl <-- Network1    
+    PlayerMgtProxy <-- Network2    
+    MoveManagement <-- Language
+    MoveManagement <-- DataStorage
+    PlayerManagement <-- MoveManagement 
+    
+    class PlayerManagement {
+        <<interface>>
+    }
+    class Language {
+        <<interface>>
+    }
+    class DataStorage {
+        <<interface>>
+    }
+    class Network1 {
+         <<interface>>
+    }
+    class Network2 {
+         <<interface>>
+    }
+```
+
+- 아키텍처 경계는 어디에나 존재한다.
+- 아키텍트로서 우리는 아키텍처 경계가 언제 필요한지를 신중하게 파악해내야 한다.
+  - 경계를 제대로 구현하려면 비용이 많이 든다는 사실도 인지하고 있어야 한다.
+  - 동시에 이러한 경계가 무시되었다면 나중에 다시 추가하는 비용이 크다는 사실도 알아야 한다.
+- 추상화는 필요하리라고 미리 예측해서는 안 된다.
+  - 오버 엔지니어링은 언더 엔지니어링보다 나쁠 때가 훨씬 많기 때문이다.
+- 미래를 내다봐야 한다.
+  - 현명하게 추측하고, 비용을 산정해야 한다.
+  - 어디에 아키텍처 경계를 둬야 할지,
+  - 그리고 완벽하게 구현할 경계는 무엇인지, 부분적으로 구현할 경계와, 무시할 경계는 무엇인지 결정해야 한다.
+- 일회성은 아니다.
+  - 시스템이 발전함에 따라 주의를 기울여야 한다.
+  - 경계가 존재하지 않아 생기는 마찰의 어렴풋한 첫 조짐을 신중하게 관찰해야 한다.
+
