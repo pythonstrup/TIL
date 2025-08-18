@@ -1,0 +1,200 @@
+# 2장 타입스크립트의 타입 시스템
+
+## item06. 편집기를 사용하여 타입 시스템 탐색하기
+
+- 타입스크립트로 실행할 수 있는 것 2가지
+  - `tsc`: 컴파일러
+  - `tsserver`: 단독으로 실행할 수 있는 타입스크립트 서버
+- 편집기에서 타입스크립트 언어 서비스를 적극적으로 활용하기 바람.
+
+## item07. 타입이 값들의 집합이라고 생각하기
+
+- `타입` = 할당 가능한 값들의 집합
+  - `null`이나 `undefined`는 `strictNullChecks` 설정에 따라 타입에 해당되거나 아닐 수 있다.
+- 가장 작은 집합 = `never`. 아무 값도 포함하지 않는 공집합.
+- 그 다음으로 작은 값은 `유닛 타입 unit type`이라고도 불리는 `리터럴 타입 literal type`
+
+```typescript
+type A = 'A';
+type B = 'B';
+type Twelve = 12;
+```
+
+- 여러 개를 묶는 `유니온 타입 union type`
+
+```typescript
+type AB = 'A' | 'B';
+```
+
+```typescript
+const a: AB = 'A'; // 가능
+const b: AB = 'C'; // error
+```
+
+- 특정 상황에서만 추가 속성을 허용하지 않는 `잉여 속성 체크 excess property checking` (item11)
+- 교집합(intersection) => `&`로 표현
+  - 아래 예시에서 `PersonSpan`이 `never`로 예상할 수 있겠지만, 타입 연산자는 인터페이스의 속성이 아닌, 값의 집합에 적용된다.
+
+```typescript
+interface Person {
+  name: string;
+}
+interface Lifespan {
+  birth: Date;
+  death?: Date;
+}
+type PersonSpan = Person & Lifespan;
+```
+
+- 아래 타입은 교집합에 속한다고 친다.
+  - 물론 더 많은 속성을 가진 값도 `PersonSpan`에 속한다.
+
+```typescript
+const ps: PersonSpan = {
+  name: 'Alice',
+  birth: new Date('1970-01-01'),
+  death: new Date('2020-01-01'),
+};
+```
+
+- 하지만 두 인터페이스의 유니온에서는 그렇지 않다. (`|`)
+
+```typescript
+type K = keyof (Person | Lifespan); // never
+```
+
+- 앞의 유니온 타입에 속하는 값은 어떠한 키도 없기 때문에, 유니온에 대한 `keyof`는 `never`여야만 한다.
+- 정확히는 아래와 같다.
+
+```typescript
+keyof (A&B) = (keyof A) | (keyof B)
+keyof (A|B) = (keyof A) & (keyof B)
+```
+
+- 타입이 집합이라는 관점에서 `extends`의 의미는 '~에 할당 가능한', `~의 부분 집합'이라는 의미로 받아들일 수 있다.
+  - `서브타입 subtype`
+- 아래 예시의 2개 코드는 사실 똑같다고 볼 수 있다.
+  - 집합이 다르지 않기 때문이다.
+
+```typescript
+interface Vector1D { x: number; }
+interface Vector2D extends Vector1D { y: number; }
+interface Vector3D extends Vector2D { z: number; }
+```
+
+```typescript
+interface Vector1D { x: number; }
+interface Vector2D { x: number; y: number; }
+interface Vector3D { x: number; y: number; z: number; }
+```
+
+- `Exclude`를 통해 일부 타입을 제외하는 것도 가능하다.
+
+```typescript
+type T = Exclude<string|Date, string|number>; // 타입은 Date
+type NonZeroNumber = Exclude<number, 0>; // 타입은 number
+```
+
+## item08. 타입 공간과 값 공간의 심벌 구분하기
+
+- `symbol`은 타입 공간이나 값 공간 중의 한 곳에 존재
+- 아래 2개의 `Cylinder`는 각각 다르다. `타입 type`과 `값 value` 이라는 개념 => 이런 점이 에러를 야기
+
+```typescript
+interface Cylinder {}
+const Cylinder = () => {};
+```
+
+- `class`와 `enum`은 상황에 따라 타입과 값 두 가지 모두 가능한 예약어다.
+
+```typescript
+class Cylinder {
+  radius = 1;
+  height = 1;
+}
+
+function calucateVolume(shape: unknown) {
+  if (shape instanceof Cynlinder) {
+    shape         // 정상, 타입은 Cylinder
+    shape.radius  // 정상, 타입은 number
+  }
+}
+```
+
+- 클래스가 타입으로 쓰일 때는 형태(property & method)가 사용되는 반면, 값으로 쓰일 때는 생성자가 사용된다.
+  - 아래는 값으로 쓰인 예시
+
+```typescript
+const p2 = new Person("김철수");
+
+// Person 생성자 함수 자체를 다른 변수에 할당 (값처럼 사용)
+const PersonFactory = Person;
+const p3 = new PersonFactory("이영희");
+```
+
+- 연산자 중에서도 타입에서 쓰일 때와 값에서 쓰일 때 다른 기능을 하는 것들이 있다.
+- ex) `typeof`
+  - 타입의 관점에서는 값을 읽어서 타입을 반환
+  - 값의 관점에서는 자바스크립트 런타임의 `typeof` 연산자 => 심벌의 런타임 타입을 가리키는 문자열을 반환
+
+```typescript
+type T1 = typeof p;      // 타입은 Person
+type T2 = typeof email;  // (p: Person, subject: string, body: string) => Response
+
+const v1 = typeof p;     // 값은 "object"
+const v2 = typeof email; // 값은 "function"
+```
+
+- 아래와 같이 `InstanceType` 제네릭을 사용해 생성자 타입과 인스턴스 타입을 전환할 수 있다.
+
+```typescript
+type C = InstanceType<typeof Cylinder>; // 타입이 Cylinder
+```
+
+- 속성 접근자인 `[]`는 타입으로 쓰일 때에도 동일하게 동작.
+  - 그러나 `obj['field]`와 `obj.field`는 값이 동일하더라도 타입은 다를 수 있다.
+  - 따라서 속성을 얻을 때는 반드시 전자의 방법(`obj['field]`)을 사용해야 한다.
+
+```typescript
+const first: Person['first'] = p['first']; // 또는 p.first
+```
+
+- 타입스크립트 코드가 잘 동작하지 않는다면 타입 공간과 값 공간을 혼동해서 잘못 작성했을 가능성이 크다.
+
+```typescript
+function email(options: {person: Person, subject: string, body: string}) {
+  // ...
+}
+```
+
+- 자바스크립트에서는 객체 내의 각 속성을 로컬 변수로 만들어 주는 구조 분해 할당을 사용할 수 있다.
+
+```javascript
+function email({person, subject, body}) {
+  // ...
+}
+```
+
+- 그런데 타입스크립트에서 구조 분해 할당을 하면, 이상한 오류가 발생한다.
+  - 값의 관점에서 `Person`과 `string`이 해석되었기 때문이다.
+
+```typescript
+fucntion email({
+  person: Person,   
+       // ~~~~~~~ 바인딩 요소 'Person'에 암시적으로 'any' 형식이 있습니다. 
+  subject: string,  
+        // ~~~~~~ 'string' 식별자가 중복되었습니다.
+        //        바인딩 요소 'string'에 암시적으로 'any' 형식이 있습니다.
+  body: string
+     // ~~~~~~ 'string' 식별자가 중복되었습니다.
+     //        바인딩 요소 'string'에 암시적으로 'any' 형식이 있습니다.
+}) {...}
+```
+
+- 따라서 타입스크립트에서는 아래와 같이 타입과 값을 구분해줘야 한다.
+
+```typescript
+function email({person, subject, body}: { person: Person, subject: string, body: string }) {
+  // ...
+}
+```
