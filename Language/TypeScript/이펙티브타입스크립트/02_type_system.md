@@ -7,6 +7,8 @@
   - `tsserver`: 단독으로 실행할 수 있는 타입스크립트 서버
 - 편집기에서 타입스크립트 언어 서비스를 적극적으로 활용하기 바람.
 
+----
+
 ## item07. 타입이 값들의 집합이라고 생각하기
 
 - `타입` = 할당 가능한 값들의 집합
@@ -94,6 +96,8 @@ interface Vector3D { x: number; y: number; z: number; }
 type T = Exclude<string|Date, string|number>; // 타입은 Date
 type NonZeroNumber = Exclude<number, 0>; // 타입은 number
 ```
+
+---
 
 ## item08. 타입 공간과 값 공간의 심벌 구분하기
 
@@ -198,3 +202,109 @@ function email({person, subject, body}: { person: Person, subject: string, body:
   // ...
 }
 ```
+
+---
+
+## item09. 타입 단언보다는 타입 선언을 사용하기
+
+- 타입 선언
+
+```typescript
+const alice: Person = {name: 'Alice'};
+```
+
+- 타입 단언
+
+```typescript
+const bob = {name: 'Bob'} as Person;
+```
+
+- 타입 선언은 할당되는 값이 인터페이스를 만족하는지 검사한다.
+  - 하지만 타입 단언은 타입을 강제로 지정해서 타입 체커에게 오류를 무시하라고 하는 것이다.
+  - 속성을 추가에서도 마찬가지다.
+- `null`이 아니라고 단언하고 싶다면 `!`를 사용할 수 있다.
+  - 다만 확신할 수 있을 때 사용해야 한다.
+
+```typescript
+const el = documnet.getElementById('foo')!;
+```
+
+- 만약 서브 타입이 아닌 것을 변환하고 싶다면 어떻게 해야하는가?
+  - `unknown` 타입을 사용해볼 수 있다. `unknown` 타입은 모든 타입의 서브타입이기 때문이다.
+
+```typescript
+const el = document.body as unknown as Person;
+```
+
+---
+
+## item10. 객체 래퍼 타입 피하기
+
+- 객체 래퍼 타입의 자동 변환은 종종 이상하게 동작하는 것처럼 보일 때가 있음.
+  - ex) 어떤 속성을 기본형에 할당하면 그 속성이 사라진다.
+
+```typescript
+> x = 'hello';
+> x.language = 'English';
+'English'
+> x.language;
+undefined
+```
+
+- 위 예시의 동작
+1. `x`가 `String` 객체로 변환
+2. `language` 속성을 추가
+3. `language` 속성이 추가된 객체가 버려짐.
+
+- `String`을 사용할 때는 특히 유의해야 한다.
+  - `string`은 `String`에 할당할 수 있지만, `String`은 `string`에 할당할 수 없다.
+  - 타입스크립트가 제공하는 타입 선언은 전부 기본형 타입으로 되어 있다.
+
+---
+
+## item11. 잉여 속성 체크의 한계 인지하기
+
+- 타입이 명시된 변수에 객체 리터럴을 할당할 때 타입스크립트는 해당 타입의 속성이 있는지, 그리고 '그 외의 속성은 없는지' 확인한다.
+- 구조적 타이핑(item04)
+- `잉여 속성 체크`는 `할당 가능 검사`와는 별도의 과정이라는 것을 알아야 타입스크립트 타입 시스템에 대한 개념을 잡을 수 있다.
+  - `할당 가능 검사`: A가 B가 필요한 모든 것을 가지고 있는가?
+  - `잉여 속성 체크`: A가 B에 알려지지 않은 추가 속성을 가지고 있는가? => 더 엄격한 추가 검사 
+    - "혹시 오타 아니야?" 또는 "이 속성 의도한 거 맞아?"
+- "객체 리터럴을 직접" 사용하냐에 따라 `잉여 속성 체크`가 발동 여부가 결정된다.
+
+```typescript
+interface Room {
+  numDoors: number;
+  ceilingHeightFt: number;
+}
+
+const r: Room = {
+  numDoors: 2,
+  ceilingHeightFt: 10,
+  elephant: 'present',
+//~~~~~~~~~~~~~~~~~~~ 개체 리터럴은 알려진 속성만 지정할 수 있으며 'Room' 형식에 'elephant'이(가) 없습니다.
+}
+```
+
+- 반면 임시 변수를 만들어 재할당하는 식으로 하면 `잉여 속성 체크`를 하지 않기 때문에 오류가 사라지게 된다.
+
+```typescript
+const r1 = {
+  numDoors: 2,
+  ceilingHeightFt: 10,
+  elephant: 'present',
+}
+const r2: Room = r1; // 오류 없음
+```
+
+- 만약 `잉여 속성 체크`를 의도적으로 제거하고 싶다면 아래와 같이 인덱스 시그니처를 사용할 수 있다.
+
+```typescript
+interface Options {
+  darkMode: boolean;
+  [otherOpitons: string]: unknown;
+}
+const o: Options = { darkmode: true }; // 'm'이 소문자여도 오류 발생 X
+```
+
+
