@@ -307,4 +307,183 @@ interface Options {
 const o: Options = { darkmode: true }; // 'm'이 소문자여도 오류 발생 X
 ```
 
+---
+
+## item12. 함수 표현식에 타입 적용하기
+
+- 자바스크립트는 함수 `문장 statement`과 함수 `표현식 expression`을 다르게 인식한다.
+
+```typescript
+function add1(a: number, b: number): number { /*...*/ }          // statement
+const add2 = function(a: number, b: number): number { /*...*/ }; // expression
+const add3 = (a: number, b: number): number => { /*...*/ };      // expression
+```
+
+- 타입스크립트에서는 함수 표현식을 사용하는 것이 좋다.
+  - 함수의 매개변수부터 반환값까지 전체를 함수 타입으로 선언하여 함수 표현식에 재사용할 수 있다는 장점이 있기 때문이다.
+
+```typescript
+type Add = (a: number, b: number) => number;
+const add1: Add = (a, b) => a + b;
+```
+
+### 함수 타입 선언의 장점
+  
+1. 불필요한 코드 반복 제거
+
+- 만약 라이브러리를 직접 만들고 있다면, 공통 콜백 함수를 위한 타입 선언을 제공하는 것이 좋다.
+  - ex) React의 `MouseEventHandler` 타입
+
+```typescript
+type BinaryFn = (a: number, b: number) => number;
+const add: BinaryFn = (a, b) => a + b;
+const sub: BinaryFn = (a, b) => a - b;
+const mul: BinaryFn = (a, b) => a * b;
+const div: BinaryFn = (a, b) => a / b;
+```
+
+2. 타입 추론
+
+- 아래 예시는 `typeof fetch`를 적용해서 타입스크립트가 `input`과 `init`의 타입을 추론할 수 있게 해준다.
+
+```typescript
+const checkedFetch: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  if (!response.ok) {
+    throw new Error('Request failed: ' + response.status);
+  }
+  return response;
+}
+```
+
+---
+
+## item13. 타입과 인터페이스의 차이점 알기
+
+- `명명된 타입 named type`을 정의하는 두 가지 방법
+
+1. `type` 키워드
+2. `interface` 키워드
+
+- 명명된 타입을 정의할 때 인터페이스 대신 클래스를 사용할 수도 있지만, 클래스는 값으로도 쓰일 수 있는 자바스크립트 런타임의 개념이다.
+
+### 공통점
+
+- 추가 속성에 대한 오류
+- 인덱스 시그니처 사용
+- 함수 타입 정의
+- 제네릭 사용 가능
+- 인터페이스는 타입을 확장할 수 있고, 타입은 인터페이스를 확장할 수 있음.
+
+### 차이점
+
+- `유니온 타입`은 있지만 유니온 인터페이스라는 개념은 없다. (`|`)
+- 인터페이스는 `보강 augment`이 가능하다.
+  - 이러한 속성을 `선언 병합 declaration merging`이라고 한다.
+
+```typescript
+interface State {
+  name: string;
+  capital: string;
+}
+interface State {
+  population: number;
+}
+const wyoming: State = {
+  name: 'Wyoming',
+  capital: 'Cheyenne',
+  population: 500_000,
+}
+```
+
+### 결론
+
+- 복잡하면 `type` 사용
+- 간단한 객체 타입이라면 일관성과 보강의 관점을 고려하여 선택
+  - 보강의 가능성 => 어떤 API에 대한 타입 선언을 작성해야 한다면 인터페이스를 사용, API가 변경될 때 사용자가 인터페이스를 통해 새로운 필드를 병합할 수 있어 유용하기 때문이다.
+  - 하지만 프로젝트 내부적으로 사용되는 타입에 선언 병합이 발생하는 것은 잘못된 설계다. 이럴 때는 타입을 사용해야 한다.
+
+---
+
+## item14. 타입 연산과 제네릭 사용으로 반복 줄이기
+
+### 타입 연산 사용
+
+#### 1. `extends`
+#### 2. 인터섹션 연산자 `&`
+#### 3. 인덱싱
+
+```typescript
+interface State {
+  userId: string;
+  pageTitle: string;
+}
+
+type TopNavState = {
+  userId: State['userId'];
+  pageTitle: State['pageTitle'];
+}
+```
+
+- 아래와 같이 매핑된 타입을 사용하면 좀 더 나아진다.
+
+```typescript
+type TopNavState = {
+  [k in 'userId' | 'pageTitle']: State[k];
+}
+```
+
+- `Pick` 사용 (제네릭)
+
+```typescript
+type Pick<T, K> = { [k in K]: T[k] };
+```
+
+```typescript
+type TopNavState = Pick<State, 'userId' | 'pageTitle'>;
+```
+
+- 유니온 인덱싱을 통한 정의
+
+```typescript
+interface SaveAcition {
+  type: 'save';
+}
+interface LoadAction {
+  type: 'load';
+}
+
+type Action = SaveAcition | LoadAction;
+type ActionType = Acition['type']; // 'save' | 'load'
+```
+
+- `Pick`을 사용하면 얻게 되는 `type` 속성을 가지는 인터페이스와는 다르다.
+
+```typescript
+type AcitionRec = Pick<Action, 'type'>; // { type: "save" | "load" }
+```
+
+#### 4. `typeof`
+
+```typescript
+const INIT_OPTIONS = {
+  width: 800,
+  height: 600,
+}
+
+type Options = typeof INIT_OPTIONS; // { width: number, height: number }
+```
+
+### 5. `ReturnType`
+
+```typescript
+function getUserInfo(name: string) {
+  return {
+    name,
+    age: 30,
+  }
+}
+
+type UserInfo = ReturnType<typeof getUserInfo>;
+```
 
