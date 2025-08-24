@@ -487,3 +487,169 @@ function getUserInfo(name: string) {
 type UserInfo = ReturnType<typeof getUserInfo>;
 ```
 
+----
+
+## item15. 동적 데이터에 인덱스 시그니처 사용하기
+
+- 자바스크립트의 장점. 객체를 생성하는 문법이 간단.
+- 특히 '인덱스 시그니처'를 명시해 유연하게 매핑을 표현할 수 있다.
+
+```typescript
+type Rocket = {[property: string]: string};
+const rocket: Rocket = {
+  name: 'Falcon 9',
+  variant: 'v1.0',
+};
+```
+
+- `[property: string]: string`라는 인덱스 시그니처의 의미
+1. 키의 이름: 키의 위치만 표시하는 용도. 타입 체커에서는 사용하지 않는다.
+2. 키의 타입: `string`이나 `number` 또는 `symbol`의 조합이어야 하지만, 보통은 `string`을 사용한다.
+3. 값의 타입: 어떤 것이든 될 수 있다.
+
+- 이렇게 타입 체크가 수행되면 네 가지 단점이 드러난다.
+1. 잘못된 키를 포함해 모든 키를 허용. ex) 오타 문제. `name`을 `Name`으로 적을 수 있음.
+2. 특정 키가 필요하지 않다. `{}`도 `Rocket` 타입이다.
+3. 키미다 다른 타입을 가질 수 없다. 
+4. 자동 완성 기능이 동작하지 않는다.
+
+- 인덱스 시그니처는 동적 데이터를 표현할 때 사용된다.
+  - ex) CSV 파일에서 열 이름을 받아올 때, 일반적인 상황에서는 열 이름이 무엇인지 미리 알 방법이 없다. 이때 사용.
+- `연관 배열 associative array`의 경우, 객체에 인덱스 시그니처를 사용하는 대신 `Map` 타입을 사용하는 것을 고려할 수 있다. (item58)
+- 어떤 타입에 가능한 필드가 제한되어 있는 경우라면 인덱스 시그니처로 모델링하지 말아야 한다.
+- `string` 타입이 너무 광범위해서 인덱스 시그니처를 사용하는 데 문제가 있다면, 두 가지 다른 대안을 생각해볼 수 있다.
+
+### 1. `Record`
+
+- 키 타입에 유연성을 제공하는 제네릭 타입
+
+```typescript
+type Vec3D = Record<'x' | 'y' | 'z', number>;
+```
+
+### 2. 매핑된 타입을 사용하는 방법
+
+```typescript
+type Vec3D = {[k in 'x' | 'y' | 'z']: number}; 
+```
+
+---
+
+## item16. `number` 인덱스 시그니처보다는 `Array`, 튜플, `ArrayLike`를 사용하기
+
+- 이상하게 동작하기로 악명 높은 것 => 암시적 타입 강제와 관련된 부분
+
+```typescript
+"0" == 0 // true
+```
+
+- 자바스크립트에는 자바에 있는 `해시 가능 객체`라는 표현이 없다.
+  - 따라서 복잡한 객체를 키로 사용하려고 하면, `toString` 메소드가 호출되어 객체가 문자열로 변환된다.
+
+```typescript
+x[[1, 2, 3]] = 2;
+console.log(x); // { '1,2,3': 1 } 
+```
+
+- 특히 숫자는 키로 사용할 수 없다. -> 숫자를 사용하더라도 자바스크립트 런타임에서 문자열로 뱉어 버린다.
+- 타입스크립트는 이러한 혼란을 바로잡기 위해 숫자 키를 허용하고, 문자열 키와 다른 것으로 인식한다.
+  - ex) `Array`에 대한 타입 선언
+
+```typescript
+interface Array<T> {
+  // ...
+  [n: number]: T;
+}
+```
+
+- 객체에서 인덱스에 신경쓰지 않는다면 `for-of` 구절을 쓰는 것이 좋다.
+  - `for-in`을 통해 키를 순회하는 것은 배열을 순회하기에 좋은 방법은 아니라고 함.
+
+```typescript
+for (const x of xs) {
+  x;
+}
+```
+
+- 만약 인덱스의 타입이 중요하다면, `Array.prototype.forEach`를 사용하면 된다.
+- 루프를 중간에 멈춰야 한다면, `for(;;)` 루프를 사용하는 것이 좋다.
+  - 타입이 불확실하다면, `for-in` 루프는 `for-of` 또는 `for(;;)` 루프에 비해 몇 배나 느리다.
+- 어떤 길이를 가지는 배열과 비슷한 형태의 튜플을 사용하고 싶다면 타입스크립트의 `ArrayLike`를 사용한다.
+  - key는 여전히 문자열이라는 점을 잊지 말아야 한다.
+
+```typescript
+function checkedAddress<T>(xs: ArrayLike<T>, i: number) {
+  if (i < xs.length) {
+    return xs[i];
+  }
+  throw new Error("...");
+}
+```
+
+---
+
+## item17. 변경 관련된 오류 방지를 위해 `readonly` 사용하기
+
+- 만약 배열을 파라미터로 받았을 때, 그 배열을 변경하지 않고 싶다는 생각이 들어 `readonly` 키워드를 사용했다고 가정해보자.
+  - 하지만 아래 코드에서는 에러가 발생할 것이다.
+
+```typescript
+function arraySum(arr: readonly number[]) {
+  let sum = 0, num;
+  while ((num = arr.pop()) !== undefined) {
+                // ~~~~~~ 'readonly number[]' 형식에 'pop' 속성이 없습니다.
+    sum += num;
+  }
+  return sum;
+}
+```
+
+- `readonly number[]`는 `number[]`와 구분되는 몇 가지 특징이 있다.
+
+1. 배열의 요소를 읽을 수 있지만, 쓸 수는 없다.
+2. `length`를 읽을 수 있지만, 바꿀 수 없다.
+3. 배열을 변경하는 pop을 비롯한 다른 메소드를 호출할 수 없다.
+
+- 따라서 `number[]`의 기능이 더 많기 때문에 `number[]`는 `readonly number[]`의 서브 타입이다.
+- 매개변수를 `readonly`로 선언하면 다음과 같은 일이 생긴다.
+
+1. 타입스크립트는 매개변수가 함수 내에서 변경이 일어나는지 체크한다.
+2. 호출하는 쪽에서 함수가 매개변수를 변경하지 않는다는 보장을 받게 된다.
+3. 호출하는 쪽에서 함수에 `readonly` 배열을 매개변수로 넣을 수도 있다.
+
+- 앞의 예제의 arraySum을 고치는 방법은 간단하다. 배열을 변경하지 않도록 하면 된다.
+
+```typescript
+function arraySum(arr: readonly number[]) {
+  let sum = 0;
+  for (const num of arr) {
+    sum += num;
+  }
+  return sum;
+}
+```
+
+- 만약 함수가 매개변수를 변경하지 않는다면 `readonly`로 선언해야 한다.
+  - 더 넓은 타입으로 호출할 수 있고(`readonly`는 그냥 원시값의 슈퍼 타입이기 때문), 의도치 않은 변경은 방지된다.
+
+### `readonly` 수정 가능한 값으로 바꾸는 법
+
+- `readonly`로 받아도 스프레드 연산자를 사용하여 할당하면 수정이 가능한 값이 된다!
+
+```typescript
+const readonlyArr: readonly string[] = ['a', 'b'];
+const updatableArr = [...readonlyArr];
+```
+
+- 아니면 단언문(`as`)를 통해 `readonly` 속성을 제거해버릴 수도 있다.
+
+### `Readonly` 제네릭
+
+```typescript
+type T = Readonly<Outer>;
+```
+
+- `deep readonly` 타입이 기본적으로 지원되지 않지만, `Readonly` 제네릭을 사용하면 `deep readonly` 타입을 사용할 수 있다.
+  - 그러나 제네릭은 만들기 까다롭기 때문에 라이브러리를 사용하는 것이 낫다고 한다.
+  - ex) `ts-essentials`의 `DeepReadonly` 제네릭
+
