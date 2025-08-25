@@ -653,3 +653,36 @@ type T = Readonly<Outer>;
   - 그러나 제네릭은 만들기 까다롭기 때문에 라이브러리를 사용하는 것이 낫다고 한다.
   - ex) `ts-essentials`의 `DeepReadonly` 제네릭
 
+---
+
+## item18. 매핑된 타입을 사용하여 값을 동기화하기
+
+- 산점도를 그릴 때, '실패에 닫힌' 접근법과 '실패에 열린' 접근법
+  - 실패에 닫힌 접근법은 정확하지만 렌더링이 너무 자주 일어남.
+  - 실패에 열린 접근법은 다시 그려야 할 때, 누락되는 경우가 발생한다.
+- 대신 타입 체커가 동작하도록 하는 코드가 최선이다.
+
+```typescript
+const REQUIRES_UPDATE: {[k in ScatterProps]: boolean}  = {
+  xs: true,
+  ys: true,
+  color: true,
+  onClick: false,
+}
+
+function shouldUpdate(
+    oldProps: ScatterProps,
+    newProps: ScatterProps
+) {
+  let k: keyof ScatterProps;
+  for (k in oldProps) {
+    if (oldProps[k] !== newProps[k] && REQUIRES_UPDATE[k]) {
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+- 만약 `ScatterProps`에 요소를 추가하면 타입 체커가 `REQUIRES_UPDATE`에서 속성이 없다며 에러를 발생시킬 것이다.
+
