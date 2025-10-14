@@ -123,4 +123,84 @@ fun eval(e: Expr): Int =
     }
 ```
 
+---
+
+## 대상 이터레이션
+
+- `while`과 `for` 루프
+
+### 범위로 이터레이션
+
+- 아래와 같은 표현을 `순열 progression`이라고 한다.
+
+```kotlin
+for (i in 1..100) {
+    // 
+}
+```
+
+- 증가 값으로 범위 이터레이션도 가능하다.
+  - `100 downTo 1`: 역방향 순열
+  - `step 2`: 절댓값 2만큼 증가 혹은 감소
+
+```kotlin
+for (i in 100 downTo 1 step 2) {
+    //
+}
+```
+
+### 켈렉션 이터레이션
+
+- `List`와 `Map` 이터레이션
+
+```kotlin
+val binaryReps = mutableMapOf<Char, String>()
+for (char in 'A'..'F') {                     // A ~ F 문자 범위 이터레이션
+  val binary = char.code.toString(radix = 2) // 아스키 2진 표현으로 변환
+  binaryReps[char] = binary
+}
+
+for ((letter, binary) in binaryReps) {       // 맵 이터레이션
+    println("$letter = $binary")
+}
+```
+
+### in으로 컬레션이나 범위의 원소 검사
+
+- `in` 연산자를 사용해 어떤 값이 범위에 속하는지 검사할 수 있다.
+- 반대로 `!in`을 사용하면 어떤 값이 범위에 속하지 않는지 검사할 수 있다.
+
+```kotlin
+fun isLetter(c: Char) = c in 'a'..'z' || c in 'A'..'Z'
+fun isNotDigit(c: Char) = c !in '0'..'9'
+```
+
+- `when` 식에서 사용해도 된다.
+
+```kotlin
+fun recognize(c: Char) = when (c) {
+  in '0'..'9' -> "It's digit!"
+  in 'a'..'z', in 'A'..'Z' -> "It's a letter!"
+  else -> "I don't know..."
+}
+```
+
+- 문자열도 in 절로 비교 가능하다. `"Kotlin" in "Java"..."Scala"`
+
+---
+
+## 예외 처리
+
+- 자바와 동일하게 `try`, `catch`, `finally`를 통해 처리할 수 있다.
+- 자바와는 다르게 `try-with-resource` 구문은 없다. 대신 라이브러리 함수로 같은 기능을 구현했다고 한다.
+- 코틀린은 체크 예외와 언체크 예외를 구별하지 않는다. (자바는 무조건 던져줘야 한다.)
+- `try-catch` 문으로 값을 할당할 수도 있다.
+
+```kotlin
+val number = try {
+      Integer.parseInt(reader.readLine())
+  } catch (e: NumberFormatException) {
+      null
+  }
+```
 
