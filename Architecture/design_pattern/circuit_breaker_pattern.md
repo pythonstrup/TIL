@@ -58,6 +58,18 @@
 
 <img src="img/circuit_breaker04.png">
 
+### Hystrix vs resilience4j
+
+(출처: https://resilience4j.readme.io/docs/comparison-to-netflix-hystrix)
+
+- `Hystrix`에서는 외부 시스템 호출을 반드시 `HystrixCommand`로 감싸야 했지만, `Resilience4j`는 함수형 인터페이스, 람다 표현식, 메서드 참조 등 어떤 형태든 고차 함수(데코레이터)를 사용해 `Circuit Breaker`, `Rate Limiter`, `Bulkhead`를 적용할 수 있다.
+- 또한 실패한 호출을 재시도하거나, 호출 결과를 캐시할 수 있는 데코레이터도 제공한다. 데코레이터는 여러 개를 조합해서 사용할 수 있다. 예를 들어, `CircuitBreaker`에 `Retry`, `RateLimiter`, `Bulkhead`를 함께 조합 가능
+- 이 방식의 장점은 필요한 기능만 선택해서 사용할 수 있다는 것! 데코레이팅된 함수는 동기적으로도, 비동기적으로도 실행할 수 있다. (예: `CompletableFuture` 또는 `RxJava` 사용)
+- `CircuitBreaker`는 단순히 예외가 발생하기 전이라도, 응답 시간이 특정 임계값을 초과하는 호출이 너무 많으면 `OPEN` 상태로 전환될 수 있다. 즉, 원격 시스템이 완전히 응답 불능 상태가 되기 전에 회로를 열 수 있단 뜻이다.
+- `Hystrix`는 `HALF-OPEN` 상태일 때 단 한 번만 호출을 시도해서 `CircuitBreaker`를 닫을지를 결정하지만, `Resilience4j`는 시도 횟수와 성공 비율을 설정할 수 있어, 더 유연하게 `HALF-OPEN` 상태에서 복귀 조건을 판단할 수 있다.
+- `Resilience4j`는 `Reactor`나 `RxJava` 전용 연산자(operator)도 제공해서, 어떤 리액티브 타입이든 `CircuitBreaker`, `Bulkhead`, `RateLimiter`를 쉽게 적용할 수 있다.
+- 마지막으로, `Hystrix`와 이 `Resilience4j` 모두 호출 결과나 지연 시간 같은 실행 메트릭을 이벤트 스트림 형태로 제공하기 때문에, 운영자가 시스템을 모니터링하는 데 매우 유용하다.
+
 ### resilience4j
 
 
